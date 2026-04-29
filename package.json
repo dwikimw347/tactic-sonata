@@ -1,0 +1,32 @@
+{
+  "name": "phrolovas-tic-tac-toe",
+  "version": "1.0.0",
+  "description": "A gothic red-black Tic Tac Toe web game against Phrolova, a poetic conductor AI.",
+  "main": "server/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "jest --runInBand",
+    "dev": "node server/server.js"
+  },
+  "keywords": [
+    "tic-tac-toe",
+    "express",
+    "minimax",
+    "jest",
+    "phrolova"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "clearMocks": true
+  }
+}

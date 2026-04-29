@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TacTic Sonata</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <section id="titleScreen" class="intro-screen title-screen" aria-label="TacTic Sonata title screen">
+    <div class="intro-content">
+      <p class="eyebrow">A gothic duel in nine movements</p>
+      <h1>TacTic Sonata</h1>
+      <p class="intro-copy">Face the crimson conductor in a sonata of silence, symmetry, and final notes.</p>
+      <button id="startGameIntroBtn" class="intro-primary-button" type="button">Start Game</button>
+    </div>
+  </section>
+
+  <section id="modeSelectScreen" class="intro-screen mode-screen" aria-label="Mode select screen" hidden>
+    <div class="mode-content">
+      <p class="eyebrow">Choose Your Performance</p>
+      <h2>Choose Your Performance</h2>
+      <div class="mode-grid">
+        <button id="vsPhrolovaBtn" class="mode-card mode-card-primary" type="button">
+          <span>Vs Phrolova</span>
+          <small>Enter the crimson duel.</small>
+        </button>
+        <button id="multiplayerBtn" class="mode-card mode-card-muted" type="button">
+          <span>Multiplayer</span>
+          <small>A duet for another night.</small>
+        </button>
+      </div>
+      <p id="multiplayerMessage" class="mode-message" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="gameScreen" hidden>
+    <main class="app-shell">
+      <header class="hero">
+        <p class="eyebrow">A gothic duel in nine movements</p>
+        <h1>TacTic Sonata</h1>
+        <p class="hero-copy">Face the crimson conductor in a sonata of silence, symmetry, and final notes.</p>
+      </header>
+
+      <section class="setup-panel" aria-label="Game setup">
+        <div class="setup-card">
+          <span class="setup-label">Your Symbol</span>
+          <div class="player-identity" aria-live="polite">
+            <span class="player-token" aria-hidden="true">You</span>
+            <strong>YOU: <span id="playerMarkDisplay">X</span></strong>
+          </div>
+          <div class="choice-row" role="group" aria-label="Choose player symbol">
+            <button class="choice-button active" data-symbol="X" type="button" aria-label="Choose X as your mark">X</button>
+            <button class="choice-button" data-symbol="O" type="button" aria-label="Choose O as your mark">O</button>
+          </div>
+        </div>
+
+        <label class="setup-card">
+          <span class="setup-label">Difficulty</span>
+          <select id="difficultySelect">
+            <option value="easy">Easy - wandering notes</option>
+            <option value="normal" selected>Normal - guarded melody</option>
+            <option value="hard">Hard - sharp refrain</option>
+            <option value="impossible">Impossible - perfect requiem</option>
+            <option value="maestro">Maestro of the Lost Beyond - Phrolova fully commands the grid</option>
+          </select>
+          <small id="difficultyDescription" class="difficulty-description hidden">Phrolova fully commands the grid.</small>
+        </label>
+
+        <label class="setup-card">
+          <span class="setup-label">Match Mode</span>
+          <select id="matchModeSelect">
+            <option value="3" selected>Best of 3</option>
+            <option value="5">Best of 5</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="arena" aria-label="TacTic Sonata arena">
+        <aside class="phrolova-card">
+          <p class="role">Your Opponent</p>
+          <div class="portrait-frame">
+            <img
+              id="phrolovaAvatar"
+              class="phrolova-avatar"
+              src="assets/images/phrolova_play.jpeg"
+              alt="Phrolova opponent portrait"
+            >
+          </div>
+          <div class="phrolova-copy">
+            <h2>Phrolova</h2>
+            <p class="persona">Poet, conductor, and keeper of the final chord.</p>
+          </div>
+
+          <div class="phrolova-divider"></div>
+
+          <section class="phrolova-dialog" aria-live="polite">
+            <span class="setup-label">Phrolova Speaks</span>
+            <div class="phrolova-skill-display">
+              <span>Current Phrolova Skill</span>
+              <strong id="phrolovaSkillName">Awaiting movement...</strong>
+            </div>
+            <blockquote id="dialogText" class="dialog-text">Quiet thy thoughts, for this grid becometh a sonoro sphere that I conduct with solemn grace.</blockquote>
+          </section>
+
+          <div class="control-row left-control-buttons">
+            <button id="startButton" class="primary-button" type="button">Begin Match</button>
+            <button id="nextRoundButton" class="secondary-button hidden" type="button">Next Round</button>
+            <button id="resetButton" class="ghost-button" type="button">Reset</button>
+            <button id="muteButton" class="ghost-button" type="button" aria-pressed="false">Sound On</button>
+          </div>
+
+          <video
+            class="phrolova-video"
+            autoplay
+            loop
+            muted
+            playsinline
+            preload="auto"
+          >
+            <source src="assets/video/phrolova-edit.mp4" type="video/mp4">
+          </video>
+        </aside>
+
+        <section class="stage-card">
+          <div class="stage-header">
+            <div>
+              <span class="setup-label">Current Stage</span>
+              <h2 id="turnLabel">Awaiting overture</h2>
+            </div>
+          </div>
+
+          <div id="board" class="board" aria-label="TacTic Sonata board"></div>
+
+          <section class="skill-panel" aria-label="Player skill panel">
+            <div class="skill-panel-header">
+              <div>
+                <span class="setup-label">Player Skills</span>
+              </div>
+            </div>
+
+            <div class="skill-grid">
+              <button
+                id="insightSkillButton"
+                class="skill-button"
+                type="button"
+                title="Highlight the best recommended move. Max 2 uses per game."
+                aria-label="Insight Move. Reveal one recommended move."
+              >
+                <span class="skill-name">Insight Move</span>
+                <small class="skill-description">Reveal one recommended move.</small>
+                <span id="insightSkillStatus" class="skill-status">2 left</span>
+              </button>
+
+              <button
+                id="undoSkillButton"
+                class="skill-button"
+                type="button"
+                title="Undo your last move and Phrolova's reply. Max 1 use per game."
+                aria-label="Undo Move. Rewind the last exchange."
+              >
+                <span class="skill-name">Undo Move</span>
+                <small class="skill-description">Rewind the last exchange.</small>
+                <span id="undoSkillStatus" class="skill-status">1 left</span>
+              </button>
+
+              <div
+                id="shieldSkillCard"
+                class="skill-button shield-card"
+                title="Warns you once when Phrolova threatens an immediate win."
+                aria-label="Harmony Shield. Warns or blocks a fatal chord."
+              >
+                <span class="skill-name">Harmony Shield</span>
+                <small class="skill-description">Warns or blocks a fatal chord.</small>
+                <span id="shieldSkillStatus" class="skill-status">Ready</span>
+                <span id="shieldSkillHint" class="shield-hint-text">Waiting.</span>
+                <button id="useShieldButton" class="shield-use-button" type="button" aria-label="Use Harmony Shield to block the current threat" disabled>Use Shield</button>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <aside class="side-panels">
+          <section class="score-card" aria-label="Score panel">
+            <span class="setup-label">Score</span>
+            <div class="score-section">
+              <h3>Career Record</h3>
+              <div class="score-grid">
+                <div>
+                  <strong id="winsScore">0</strong>
+                  <span>Wins</span>
+                </div>
+                <div>
+                  <strong id="lossesScore">0</strong>
+                  <span>Losses</span>
+                </div>
+                <div>
+                  <strong id="drawsScore">0</strong>
+                  <span>Draws</span>
+                </div>
+              </div>
+            </div>
+            <div class="score-section current-match">
+              <h3>Current Match</h3>
+              <div class="match-meter">
+                <span id="matchLabel">Best of 3</span>
+                <span id="roundLabel">Round 1</span>
+              </div>
+              <div class="match-bars">
+                <span id="playerMatchWins">You 0</span>
+                <span id="aiMatchWins">Phrolova 0</span>
+                <span id="matchDraws">Draws 0</span>
+              </div>
+            </div>
+          </section>
+
+        </aside>
+      </section>
+    </main>
+  </section>
+
+  <div id="matchModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-panel">
+      <span class="setup-label">Finale</span>
+      <h2 id="modalTitle">The final note has fallen.</h2>
+      <p id="modalText">The hall remembers every move.</p>
+      <button id="modalCloseButton" class="primary-button" type="button">Close Curtain</button>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
