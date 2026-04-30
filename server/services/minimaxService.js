@@ -23,7 +23,7 @@ function getAvailableMoves(board) {
     .filter((index) => index !== null);
 }
 
-function evaluateBoard(board) {
+function checkWinner(board) {
   const safeBoard = normalizeBoard(board);
 
   for (const pattern of WIN_PATTERNS) {
@@ -32,9 +32,24 @@ function evaluateBoard(board) {
       return {
         winner: safeBoard[a],
         winningPattern: pattern,
-        isDraw: false,
       };
     }
+  }
+
+  return {
+    winner: null,
+    winningPattern: [],
+  };
+}
+
+function evaluateBoard(board) {
+  const safeBoard = normalizeBoard(board);
+  const result = checkWinner(safeBoard);
+  if (result.winner) {
+    return {
+      ...result,
+      isDraw: false,
+    };
   }
 
   const isDraw = safeBoard.every(Boolean);
@@ -125,6 +140,7 @@ function findBestMove(board, aiSymbol, playerSymbol) {
 
 module.exports = {
   WIN_PATTERNS,
+  checkWinner,
   evaluateBoard,
   findBestMove,
   getAvailableMoves,

@@ -1,5 +1,5 @@
 const scoreStore = require('../data/scoreStore');
-const { evaluateBoard, findBestMove } = require('../services/minimaxService');
+const { checkWinner, evaluateBoard, findBestMove, getAvailableMoves } = require('../services/minimaxService');
 const playerSkillService = require('../services/playerSkillService');
 const {
   choosePhrolovaSkill,
@@ -65,6 +65,26 @@ function publicGameState(game) {
 }
 
 function finalizeRound(game, result, winningPattern = []) {
+  if (result !== 'draw') {
+    const expectedSymbol = result === 'player' ? game.playerSymbol : game.aiSymbol;
+    const boardWinner = checkWinner(game.board);
+    const validWinner = boardWinner.winner === expectedSymbol
+      && boardWinner.winningPattern.length === 3
+      && boardWinner.winningPattern.every((index) => game.board[index] === expectedSymbol);
+
+    if (!validWinner) {
+      console.error('Invalid winner state prevented:', {
+        board: game.board,
+        winner: expectedSymbol,
+        winningPattern,
+      });
+      game.status = 'playing';
+      game.winner = null;
+      game.winningPattern = [];
+      return game;
+    }
+  }
+
   game.status = 'finished';
   game.winner = result;
   game.winningPattern = winningPattern;
@@ -75,6 +95,68 @@ function finalizeRound(game, result, winningPattern = []) {
   scoreStore.setCurrentGame(game);
 
   return game;
+}
+
+function createSkillResult(skill, move, overrides = {}) {
+  return {
+    skill: skill.skill,
+    dialogue: skill.dialogue,
+    effect: skill.effect,
+    strategy: skill.strategy,
+    move,
+    ...overrides,
+  };
+}
+
+function tryNormalSkills(game) {
+  const normalChoice = choosePhrolovaSkill({
+    board: game.board,
+    aiSymbol: game.aiSymbol,
+    playerSymbol: game.playerSymbol,
+    difficulty: 'impossible',
+  });
+
+  if (normalChoice.move !== null && !game.board[normalChoice.move]) {
+    return normalChoice;
+  }
+
+  const fallbackMove = findBestMove(game.board, game.aiSymbol, game.playerSymbol);
+  if (fallbackMove !== null && !game.board[fallbackMove]) {
+    return {
+      ...normalChoice,
+      strategy: 'minimax-fallback',
+      move: fallbackMove,
+    };
+  }
+
+  const randomMove = getAvailableMoves(game.board)[0] ?? null;
+  return createSkillResult({
+    skill: 'Echo Manipulation',
+    dialogue: 'Not every note follows logic... some are meant to deceive.',
+    effect: 'phrolova-random',
+    strategy: 'random',
+  }, randomMove);
+}
+
+function avoidTemporaryShadowMove(game, choice) {
+  const shadow = game.temporaryEffects?.hecateShadow;
+  if (!shadow || choice?.move !== shadow.index) return choice;
+
+  const alternatives = getAvailableMoves(game.board).filter((move) => move !== shadow.index);
+  if (!alternatives.length) return choice;
+
+  const restoredBoard = [...game.board];
+  restoredBoard[shadow.index] = shadow.symbol;
+  const bestMove = findBestMove(restoredBoard, game.aiSymbol, game.playerSymbol);
+  const safeMove = alternatives.includes(bestMove)
+    ? bestMove
+    : [4, 0, 2, 6, 8, 1, 3, 5, 7].find((move) => alternatives.includes(move)) ?? alternatives[0];
+
+  return {
+    ...choice,
+    move: safeMove,
+    strategy: `${choice.strategy || 'move'}-avoid-shadow`,
+  };
 }
 
 function applyOutcomeIfFinished(game) {
@@ -97,10 +179,8 @@ function performAIMove(game) {
   let maestroAbility = null;
 
   if (game.difficulty === 'maestro') {
-    if (maestroAbilityService.canUseHecatesShadow(game)) {
-      maestroAbility = maestroAbilityService.applyHecatesShadow(game);
-    } else if (maestroAbilityService.canUseResonanceOverride(game)) {
-      maestroAbility = maestroAbilityService.applyResonanceOverride(game);
+    maestroAbility = maestroAbilityService.tryMaestroAbilities(game);
+    if (maestroAbility?.effect === 'resonance-override' || maestroAbility?.effect === 'symphony-rebirth') {
       game.lastMaestroAbility = maestroAbility;
       applyOutcomeIfFinished(game);
       if (game.status === 'playing') {
@@ -115,30 +195,11 @@ function performAIMove(game) {
         move: maestroAbility.move ?? maestroAbility.affectedCells?.[0] ?? null,
         maestroAbility,
       };
-    } else if (maestroAbilityService.canUseSymphonyOfRebirth(game)) {
-      maestroAbility = maestroAbilityService.applySymphonyOfRebirth(game);
-      game.lastMaestroAbility = maestroAbility;
-      applyOutcomeIfFinished(game);
-      return {
-        skill: maestroAbility.name,
-        dialogue: maestroAbility.dialogue,
-        effect: maestroAbility.effect,
-        strategy: 'symphony-rebirth',
-        move: maestroAbility.move ?? null,
-        maestroAbility,
-      };
     }
   }
 
-  const aiChoice = choosePhrolovaSkill({
-    board: game.board,
-    aiSymbol: game.aiSymbol,
-    playerSymbol: game.playerSymbol,
-    difficulty: game.difficulty === 'maestro' ? 'impossible' : game.difficulty,
-  });
-
-  let effectiveChoice = aiChoice;
-  if (game.difficulty === 'maestro' && !maestroAbility) {
+  let effectiveChoice;
+  if (game.difficulty === 'maestro') {
     const forcedThreatMove = maestroAbilityService.createThreatForPlayer(game);
     if (forcedThreatMove !== null) {
       effectiveChoice = {
@@ -148,21 +209,36 @@ function performAIMove(game) {
         strategy: 'maestro-force-threat',
         move: forcedThreatMove,
       };
+    } else {
+      effectiveChoice = tryNormalSkills(game);
     }
-  } else if (maestroAbility) {
+  } else {
+    effectiveChoice = choosePhrolovaSkill({
+      board: game.board,
+      aiSymbol: game.aiSymbol,
+      playerSymbol: game.playerSymbol,
+      difficulty: game.difficulty,
+    });
+  }
+
+  if (maestroAbility?.effect === 'hecate-shadow') {
     effectiveChoice = {
-      ...aiChoice,
+      ...effectiveChoice,
       skill: maestroAbility.name,
       dialogue: maestroAbility.dialogue,
       effect: maestroAbility.effect,
       strategy: `maestro-${maestroAbility.reason || 'shadow'}`,
     };
+    effectiveChoice = avoidTemporaryShadowMove(game, effectiveChoice);
   }
 
-  if (effectiveChoice.move === null || game.board[effectiveChoice.move]) {
+  if (!effectiveChoice || effectiveChoice.move === null || game.board[effectiveChoice.move]) {
     const fallbackMove = findBestMove(game.board, game.aiSymbol, game.playerSymbol);
     effectiveChoice = {
-      ...effectiveChoice,
+      ...(effectiveChoice || {}),
+      skill: effectiveChoice?.skill || 'Symphony Prediction',
+      dialogue: effectiveChoice?.dialogue || 'Every move you make... I have already heard its echo.',
+      effect: effectiveChoice?.effect || 'phrolova-prediction',
       strategy: 'minimax-fallback',
       move: fallbackMove,
     };
@@ -252,6 +328,7 @@ function createGame({ playerSymbol = 'X', difficulty, matchMode, preserveMatch =
       resonanceUsed: false,
       symphonyUsed: Boolean(match.abilityUsage?.symphonyOfRebirthUsed),
       shadowCount: 0,
+      shadowUsedCount: 0,
     },
     lastPhrolovaSkill: null,
     lastMaestroAbility: null,

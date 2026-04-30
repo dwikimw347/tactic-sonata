@@ -67,6 +67,10 @@ function ensureMaestroState(gameState) {
   gameState.maestro.shadowCount = Number.isInteger(gameState.maestro.shadowCount)
     ? gameState.maestro.shadowCount
     : 0;
+  gameState.maestro.shadowUsedCount = Number.isInteger(gameState.maestro.shadowUsedCount)
+    ? gameState.maestro.shadowUsedCount
+    : gameState.maestro.shadowCount;
+  gameState.maestro.shadowCount = Math.max(gameState.maestro.shadowCount, gameState.maestro.shadowUsedCount);
 
   return gameState;
 }
@@ -179,11 +183,6 @@ function getResonanceOverrideTarget(gameState) {
     }
   }
 
-  const threat = findPlayerThreat(board, playerSymbol);
-  if (threat) {
-    return { index: threat.playerCells[0], reason: 'threat-denial', pattern: threat.pattern };
-  }
-
   for (const index of playerCells) {
     const nextBoard = [...board];
     nextBoard[index] = aiSymbol;
@@ -192,9 +191,9 @@ function getResonanceOverrideTarget(gameState) {
     }
   }
 
-  const preferred = [4, 0, 2, 6, 8, 1, 3, 5, 7].find((index) => board[index] === playerSymbol);
-  if (preferred !== undefined) {
-    return { index: preferred, reason: 'momentum-theft' };
+  const threat = findPlayerThreat(board, playerSymbol);
+  if (threat && gameState.maestro?.shadowCount > 0) {
+    return { index: threat.playerCells[0], reason: 'threat-denial', pattern: threat.pattern };
   }
 
   return null;
@@ -229,6 +228,7 @@ function canUseHecatesShadow(gameState) {
   if (!isMaestro(gameState)) return false;
   if (gameState.temporaryEffects?.hecateShadow) return false;
   if (gameState.maestro.shadowCount >= 2) return false;
+  if (gameState.maestro.shadowCount > 0 && !gameState.abilityUsage.symphonyOfRebirthUsed) return false;
   const target = findHecateShadowTarget(gameState);
   return Boolean(target);
 }
@@ -248,6 +248,7 @@ function applyHecatesShadow(gameState) {
     reason: threat.reason,
   };
   gameState.maestro.shadowCount += 1;
+  gameState.maestro.shadowUsedCount = gameState.maestro.shadowCount;
 
   return createAbilityResult('hecate', [shadowCell, threat.emptyCell], {
     shadowCell,
@@ -378,6 +379,28 @@ function createThreatForPlayer(gameState) {
   return baitMove ?? moves[0];
 }
 
+function tryMaestroAbilities(gameState) {
+  ensureMaestroState(gameState);
+  if (!isMaestro(gameState)) return null;
+
+  if (canUseResonanceOverride(gameState)) {
+    const resonance = applyResonanceOverride(gameState);
+    if (resonance) return resonance;
+  }
+
+  if (canUseHecatesShadow(gameState)) {
+    const shadow = applyHecatesShadow(gameState);
+    if (shadow) return shadow;
+  }
+
+  if (canUseSymphonyOfRebirth(gameState)) {
+    const rebirth = applySymphonyOfRebirth(gameState);
+    if (rebirth) return rebirth;
+  }
+
+  return null;
+}
+
 module.exports = {
   MAESTRO_DIFFICULTY,
   canUseHecatesShadow,
@@ -392,4 +415,5 @@ module.exports = {
   toPublicMaestroAbility,
   chooseMaestroBaitMove,
   createThreatForPlayer,
+  tryMaestroAbilities,
 };
