@@ -85,6 +85,13 @@ TacTic Sonata is a gothic-themed Tic Tac Toe web game with two main play modes:
   - Added forcing strategy so Maestro can intentionally create a player threat when Hecate has not appeared yet.
   - Maestro decision priority is now: Maestro abilities -> normal Phrolova skills -> minimax fallback.
   - The same Hecate/forcing/fallback behavior exists in the GitHub Pages static fallback.
+- Fixed false-positive Maestro wins and tightened winner detection:
+  - Added explicit `checkWinner(board)` in backend and static fallback.
+  - Winner detection only succeeds when a winning line has 3 matching marks.
+  - Round finalization now guards against invalid winner states before score is recorded.
+  - Winner checks happen after Maestro temporary effects are restored and board state is final.
+  - After Hecate's Shadow, AI avoids filling the temporary shadow cell when another move exists, making restore behavior clearer.
+  - Current Maestro pipeline is: Maestro abilities -> force threat if needed -> normal Phrolova skills -> minimax fallback.
 
 ## Vs Phrolova Mode
 
