@@ -67,6 +67,12 @@ TacTic Sonata is a gothic-themed Tic Tac Toe web game with two main play modes:
   - Symphony of Rebirth triggers more aggressively before player wins/draws are finalized.
   - Maestro tracks `shadowCount`, `resonanceUsed`, and `symphonyUsed`.
   - Maestro uses bait / controlled-loss style moves before finishing with stronger play.
+- Added dedicated Maestro ability dialog/audio handling:
+  - Resonance Override uses `client/assets/audio/phrolova_resonance_override.mp3`.
+  - Hecate's Shadow uses `client/assets/audio/phrolova_hecate_shadow.mp3`.
+  - Symphony of Rebirth uses `client/assets/audio/phrolova_symphony_of_rebirth.mp3`.
+  - Ability dialog/audio has priority over normal playing/win/lose/draw dialog when an ability activates.
+  - Ability names are normalized on the frontend so backend/local fallback naming differences still resolve correctly.
 
 ## Vs Phrolova Mode
 
@@ -103,6 +109,14 @@ client/assets/audio/phrolova_welcome.mp3
 It plays once when entering Vs Phrolova and respects the Sound On/Off toggle.
 
 All Phrolova voice lines now use one shared controller in `client/js/app.js`, so only one Phrolova voice can play at a time.
+
+Maestro ability voice lines are mapped in `client/js/app.js` through `MAESTRO_ABILITY_DIALOGS` and use the same shared Phrolova voice controller:
+
+```text
+client/assets/audio/phrolova_resonance_override.mp3
+client/assets/audio/phrolova_hecate_shadow.mp3
+client/assets/audio/phrolova_symphony_of_rebirth.mp3
+```
 
 ## Multiplayer Mode
 
@@ -186,6 +200,9 @@ client/js/skillManager.js
 client/js/multiplayer.js
 client/js/supabaseConfig.js
 client/assets/audio/phrolova_welcome.mp3
+client/assets/audio/phrolova_resonance_override.mp3
+client/assets/audio/phrolova_hecate_shadow.mp3
+client/assets/audio/phrolova_symphony_of_rebirth.mp3
 server/server.js
 server/routes/gameRoutes.js
 server/controllers/gameController.js
