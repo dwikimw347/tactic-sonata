@@ -23,6 +23,7 @@
     afkTimer: null,
     historyLoadedFor: "",
     insightHintIndex: null,
+    supportsSkillColumns: true,
   };
 
   const elements = {};
@@ -80,6 +81,68 @@
 
   function setError(message) {
     setText(elements.multiplayerSetupError, message);
+  }
+
+  function isMissingSkillColumnError(error) {
+    const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+    return text.includes("skill_state")
+      || text.includes("move_history")
+      || (error?.code === "PGRST204" && text.includes("schema cache"));
+  }
+
+  function formatSupabaseError(error) {
+    const message = error?.message || "Check configuration and policies.";
+    if (message.includes("relation") && message.includes("does not exist")) {
+      return "Supabase table is missing. Run supabase/schema.sql in Supabase SQL Editor.";
+    }
+    if (message.toLowerCase().includes("permission denied") || error?.code === "42501") {
+      return "Supabase policy blocked access. Disable RLS for demo or add public anon policies.";
+    }
+    if (isMissingSkillColumnError(error)) {
+      return "Supabase room table needs migration. Add skill_state and move_history columns.";
+    }
+    if (message.toLowerCase().includes("failed to fetch")) {
+      return "Supabase request failed. Check Project URL, anon key, and network access.";
+    }
+    return `Supabase error: ${message}`;
+  }
+
+  function baseRoomPayload(payload) {
+    const { skill_state: skillState, move_history: moveHistory, ...basePayload } = payload;
+    return basePayload;
+  }
+
+  async function insertRoom(payload) {
+    const client = initClient();
+    let response = await client
+      .from("multiplayer_rooms")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (response.error && isMissingSkillColumnError(response.error)) {
+      state.supportsSkillColumns = false;
+      setError("Multiplayer works, but Supabase needs skill_state and move_history columns for skills.");
+      response = await client
+        .from("multiplayer_rooms")
+        .insert(baseRoomPayload(payload))
+        .select()
+        .single();
+    }
+
+    return response;
+  }
+
+  async function updateRoom(queryBuilder, payload) {
+    let response = await queryBuilder(payload);
+
+    if (response.error && isMissingSkillColumnError(response.error)) {
+      state.supportsSkillColumns = false;
+      setError("Multiplayer works, but Supabase needs skill_state and move_history columns for skills.");
+      response = await queryBuilder(baseRoomPayload(payload));
+    }
+
+    return response;
   }
 
   function hideAllScreens() {
@@ -298,7 +361,7 @@
       elements.multiplayerInsightStatus.textContent = `${skills.insight}/2`;
     }
     if (elements.multiplayerInsightButton) {
-      elements.multiplayerInsightButton.disabled = !canUse || skills.insight <= 0 || state.room?.current_turn !== state.symbol;
+      elements.multiplayerInsightButton.disabled = !state.supportsSkillColumns || !canUse || skills.insight <= 0 || state.room?.current_turn !== state.symbol;
       elements.multiplayerInsightButton.classList.toggle("skill-spent", skills.insight <= 0);
       elements.multiplayerInsightButton.classList.toggle("active", state.insightHintIndex !== null);
     }
@@ -307,7 +370,7 @@
       elements.multiplayerUndoStatus.textContent = skills.undo > 0 ? "1/1" : "Used";
     }
     if (elements.multiplayerUndoButton) {
-      elements.multiplayerUndoButton.disabled = !undoAvailable || skills.undo <= 0;
+      elements.multiplayerUndoButton.disabled = !state.supportsSkillColumns || !undoAvailable || skills.undo <= 0;
       elements.multiplayerUndoButton.classList.toggle("skill-spent", skills.undo <= 0);
     }
 
@@ -315,7 +378,9 @@
       elements.multiplayerShieldStatus.textContent = skills.shield === "ready" ? "Ready" : "Spent";
     }
     if (elements.multiplayerShieldHint) {
-      elements.multiplayerShieldHint.textContent = skills.shield === "ready" ? "Armed." : "Spent.";
+      elements.multiplayerShieldHint.textContent = !state.supportsSkillColumns
+        ? "Needs DB update."
+        : skills.shield === "ready" ? "Armed." : "Spent.";
     }
     if (elements.multiplayerShieldCard) {
       elements.multiplayerShieldCard.classList.toggle("active", skills.shield === "ready");
@@ -376,28 +441,23 @@
         await createRoom();
       }
     } catch (error) {
-      setError("Unable to reach Supabase. Check configuration and policies.");
+      setError(formatSupabaseError(error));
     } finally {
       elements.findMatchButton.disabled = false;
     }
   }
 
   async function createRoom() {
-    const client = initClient();
-    const { data, error } = await client
-      .from("multiplayer_rooms")
-      .insert({
-        status: "waiting",
-        player_x: state.username,
-        player_x_id: state.playerId,
-        board: [...EMPTY_BOARD],
-        skill_state: window.TacTicSkills?.createDefaultSkillState?.(),
-        move_history: [],
-        current_turn: randomTurn(),
-        last_move_at: nowIso(),
-      })
-      .select()
-      .single();
+    const { data, error } = await insertRoom({
+      status: "waiting",
+      player_x: state.username,
+      player_x_id: state.playerId,
+      board: [...EMPTY_BOARD],
+      skill_state: window.TacTicSkills?.createDefaultSkillState?.(),
+      move_history: [],
+      current_turn: randomTurn(),
+      last_move_at: nowIso(),
+    });
 
     if (error) throw error;
     enterRoom(data, "Waiting for opponent...");
@@ -405,9 +465,16 @@
 
   async function joinRoom(room) {
     const client = initClient();
-    const { data, error } = await client
-      .from("multiplayer_rooms")
-      .update({
+    const { data, error } = await updateRoom(
+      (payload) => client
+        .from("multiplayer_rooms")
+        .update(payload)
+        .eq("id", room.id)
+        .eq("status", "waiting")
+        .is("player_o_id", null)
+        .select()
+        .single(),
+      {
         status: "playing",
         player_o: state.username,
         player_o_id: state.playerId,
@@ -416,12 +483,8 @@
         current_turn: randomTurn(),
         updated_at: nowIso(),
         last_move_at: nowIso(),
-      })
-      .eq("id", room.id)
-      .eq("status", "waiting")
-      .is("player_o_id", null)
-      .select()
-      .single();
+      },
+    );
 
     if (error) throw error;
     enterRoom(data, "Match found.");
@@ -505,7 +568,7 @@
     const moveHistory = Array.isArray(room.move_history) ? [...room.move_history] : [];
     let shieldCanceledWin = false;
 
-    if (outcome.winner === state.symbol && skillState?.[defenderKey]?.shield === "ready") {
+    if (state.supportsSkillColumns && outcome.winner === state.symbol && skillState?.[defenderKey]?.shield === "ready") {
       board[index] = null;
       skillState[defenderKey].shield = "spent";
       shieldCanceledWin = true;
@@ -523,11 +586,14 @@
     const update = {
       board,
       current_turn: shieldCanceledWin ? nextTurn : outcome.winner || outcome.isDraw ? room.current_turn : nextTurn,
-      skill_state: skillState,
-      move_history: moveHistory.slice(-8),
       updated_at: nowIso(),
       last_move_at: nowIso(),
     };
+
+    if (state.supportsSkillColumns) {
+      update.skill_state = skillState;
+      update.move_history = moveHistory.slice(-8);
+    }
 
     if (outcome.winner && !shieldCanceledWin) {
       update.status = "finished";
@@ -539,14 +605,17 @@
       update.result_type = "draw";
     }
 
-    const { data, error } = await client
-      .from("multiplayer_rooms")
-      .update(update)
-      .eq("id", room.id)
-      .eq("status", "playing")
-      .eq("current_turn", state.symbol)
-      .select()
-      .single();
+    const { data, error } = await updateRoom(
+      (payload) => client
+        .from("multiplayer_rooms")
+        .update(payload)
+        .eq("id", room.id)
+        .eq("status", "playing")
+        .eq("current_turn", state.symbol)
+        .select()
+        .single(),
+      update,
+    );
 
     if (error || !data) return;
     state.insightHintIndex = null;
@@ -622,7 +691,7 @@
   async function useInsight() {
     const client = initClient();
     const room = state.room;
-    if (!client || !room || room.status !== "playing" || room.current_turn !== state.symbol) return;
+    if (!client || !state.supportsSkillColumns || !room || room.status !== "playing" || room.current_turn !== state.symbol) return;
 
     const skillState = getSkillState(room);
     const key = window.TacTicSkills?.playerKey(state.symbol);
@@ -664,7 +733,7 @@
   async function useUndo() {
     const client = initClient();
     const room = state.room;
-    if (!client || !canUndoCurrentPlayer(room)) return;
+    if (!client || !state.supportsSkillColumns || !canUndoCurrentPlayer(room)) return;
 
     const skillState = getSkillState(room);
     const key = window.TacTicSkills?.playerKey(state.symbol);
