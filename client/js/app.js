@@ -156,6 +156,7 @@ const elements = {
   nextRoundButton: document.querySelector('#nextRoundButton'),
   resetButton: document.querySelector('#resetButton'),
   muteButton: document.querySelector('#muteButton'),
+  backToModeFromPhrolova: document.querySelector('#backToModeFromPhrolova'),
   difficultySelect: document.querySelector('#difficultySelect'),
   difficultyDescription: document.querySelector('#difficultyDescription'),
   matchModeSelect: document.querySelector('#matchModeSelect'),
@@ -899,6 +900,17 @@ function safePlay(name) {
   }
 }
 
+function playClickSfx() {
+  safePlay('click');
+}
+
+function showScreen(screenId) {
+  ['titleScreen', 'modeSelectScreen', 'gameScreen', 'multiplayerScreen'].forEach((id) => {
+    const element = document.getElementById(id);
+    if (element) element.hidden = id !== screenId;
+  });
+}
+
 function stopAllBackgroundAudioElements() {
   document.querySelectorAll('audio').forEach((track) => {
     const src = track.currentSrc || track.src || '';
@@ -1474,21 +1486,20 @@ async function syncMatchMode() {
 
 function bindIntroFlow() {
   elements.startGameIntroBtn?.addEventListener('click', () => {
-    if (elements.titleScreen) elements.titleScreen.hidden = true;
-    if (elements.modeSelectScreen) elements.modeSelectScreen.hidden = false;
+    playClickSfx();
+    showScreen('modeSelectScreen');
     if (elements.multiplayerMessage) elements.multiplayerMessage.textContent = '';
   });
 
   elements.vsPhrolovaBtn?.addEventListener('click', () => {
-    if (elements.modeSelectScreen) elements.modeSelectScreen.hidden = true;
-    if (elements.gameScreen) elements.gameScreen.hidden = false;
-    const multiplayerScreen = document.getElementById('multiplayerScreen');
-    if (multiplayerScreen) multiplayerScreen.hidden = true;
+    playClickSfx();
+    showScreen('gameScreen');
     setDialog(BACKEND_UNAVAILABLE_MESSAGE);
     playPhrolovaWelcome();
   });
 
   elements.multiplayerBtn?.addEventListener('click', () => {
+    playClickSfx();
     if (window.TacTicMultiplayer?.showSetup) {
       window.TacTicMultiplayer.showSetup();
       return;
@@ -1500,6 +1511,7 @@ function bindIntroFlow() {
 function bindEvents() {
   elements.symbolButtons.forEach((button) => {
     button.addEventListener('click', () => {
+      playClickSfx();
       state.selectedSymbol = button.dataset.symbol;
       if (elements.playerMarkDisplay) {
         elements.playerMarkDisplay.textContent = state.selectedSymbol;
@@ -1509,6 +1521,7 @@ function bindEvents() {
   });
 
   elements.difficultySelect.addEventListener('change', async (event) => {
+    playClickSfx();
     state.selectedDifficulty = event.target.value;
     if (elements.difficultyDescription) {
       elements.difficultyDescription.classList.toggle('hidden', state.selectedDifficulty !== 'maestro');
@@ -1517,19 +1530,42 @@ function bindEvents() {
   });
 
   elements.matchModeSelect.addEventListener('change', async (event) => {
+    playClickSfx();
     state.selectedMatchMode = Number(event.target.value);
     await syncMatchMode();
   });
 
-  elements.startButton.addEventListener('click', () => startMatch({ preserveMatch: false }));
-  elements.nextRoundButton.addEventListener('click', () => startMatch({ preserveMatch: true }));
-  elements.resetButton.addEventListener('click', resetGame);
-  elements.insightSkillButton.addEventListener('click', useInsightSkill);
-  elements.undoSkillButton.addEventListener('click', useUndoSkill);
-  elements.useShieldButton.addEventListener('click', useHarmonyShieldSkill);
-  elements.modalCloseButton.addEventListener('click', () => elements.modal.classList.add('hidden'));
+  elements.startButton.addEventListener('click', () => {
+    playClickSfx();
+    startMatch({ preserveMatch: false });
+  });
+  elements.nextRoundButton.addEventListener('click', () => {
+    playClickSfx();
+    startMatch({ preserveMatch: true });
+  });
+  elements.resetButton.addEventListener('click', () => {
+    playClickSfx();
+    resetGame();
+  });
+  elements.insightSkillButton.addEventListener('click', () => {
+    playClickSfx();
+    useInsightSkill();
+  });
+  elements.undoSkillButton.addEventListener('click', () => {
+    playClickSfx();
+    useUndoSkill();
+  });
+  elements.useShieldButton.addEventListener('click', () => {
+    playClickSfx();
+    useHarmonyShieldSkill();
+  });
+  elements.modalCloseButton.addEventListener('click', () => {
+    playClickSfx();
+    elements.modal.classList.add('hidden');
+  });
 
   elements.muteButton.addEventListener('click', () => {
+    playClickSfx();
     state.muted = !state.muted;
     elements.muteButton.textContent = state.muted ? 'Sound Off' : 'Sound On';
     elements.muteButton.setAttribute('aria-pressed', String(state.muted));
@@ -1542,6 +1578,13 @@ function bindEvents() {
       state.audioReady = true;
       playBackgroundMusic();
     }
+  });
+
+  elements.backToModeFromPhrolova?.addEventListener('click', () => {
+    playClickSfx();
+    stopPhrolovaWelcome();
+    showScreen('modeSelectScreen');
+    if (elements.multiplayerMessage) elements.multiplayerMessage.textContent = '';
   });
 }
 

@@ -1,6 +1,6 @@
 (() => {
   const BGM_VOLUME = 0.3;
-  const SFX_VOLUME = 0.4;
+  const SFX_VOLUME = 0.45;
 
   const state = {
     muted: false,
@@ -77,8 +77,10 @@
     playMultiplayerMusic,
     pauseMultiplayerMusic,
     playClick,
+    playClickSfx: playClick,
     setMuted,
     toggleMuted,
     isMuted: () => state.muted,
   };
+  window.playClickSfx = playClick;
 })();

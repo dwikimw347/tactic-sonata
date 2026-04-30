@@ -45,6 +45,8 @@
       "multiplayerUsernameInput",
       "findMatchButton",
       "backToModeButton",
+      "backToModeFromFindMatch",
+      "backToFindMatchBtn",
       "multiplayerSetupError",
       "multiplayerStatusText",
       "multiplayerYouName",
@@ -168,6 +170,9 @@
 
   function backToModeSelect() {
     cleanupRealtime();
+    state.room = null;
+    state.symbol = null;
+    state.insightHintIndex = null;
     if (elements.multiplayerScreen) elements.multiplayerScreen.hidden = true;
     if (elements.modeSelectScreen) elements.modeSelectScreen.hidden = false;
   }
@@ -350,7 +355,21 @@
 
     renderBoard(state.room.board, outcome.winningPattern);
     renderSkillPanel();
+    renderBackToFindMatchButton(state.room);
     scheduleAfkCheck(state.room);
+  }
+
+  function renderBackToFindMatchButton(room) {
+    if (!elements.backToFindMatchBtn) return;
+    elements.backToFindMatchBtn.hidden = !room;
+    if (!room) return;
+    if (room.status === "waiting") {
+      elements.backToFindMatchBtn.textContent = "Cancel Search";
+    } else if (room.status === "playing") {
+      elements.backToFindMatchBtn.textContent = "Leave Match";
+    } else {
+      elements.backToFindMatchBtn.textContent = "Back to Find Match";
+    }
   }
 
   function getSkillState(room = state.room) {
@@ -430,16 +449,23 @@
       return;
     }
 
+    if (room.result_type === "left") {
+      setStatus(didWin ? "Opponent left. You win." : "You left the match.");
+      setText(elements.multiplayerTurnLabel, didWin ? "OPPONENT LEFT - YOU WIN" : "MATCH LEFT");
+      setText(elements.multiplayerTurnInfo, `${winnerName} wins by forfeit.`);
+      return;
+    }
+
     setStatus(didWin ? "You win." : `${winnerName} wins.`);
     setText(elements.multiplayerTurnLabel, didWin ? "YOU WON THIS MOVEMENT" : "OPPONENT CLAIMED THE CADENCE");
     setText(elements.multiplayerTurnInfo, `${winnerName} wins.`);
   }
 
   async function findMatch() {
+    window.TacTicAudio?.playClick();
     const client = initClient();
     if (!client) return;
 
-    window.TacTicAudio?.playClick();
     const username = validateUsername();
     if (!username) return;
 
@@ -534,6 +560,73 @@
     state.afkTimer = null;
     state.roomChannel = null;
     state.messageChannel = null;
+  }
+
+  async function deleteWaitingRoom(room = state.room) {
+    const client = initClient();
+    if (!client || !room || room.status !== "waiting") return;
+    if (room.player_x_id !== state.playerId) return;
+
+    await client
+      .from("multiplayer_rooms")
+      .delete()
+      .eq("id", room.id)
+      .eq("status", "waiting")
+      .eq("player_x_id", state.playerId);
+  }
+
+  async function leavePlayingRoom(room = state.room) {
+    const client = initClient();
+    if (!client || !room || room.status !== "playing") return false;
+
+    const confirmed = window.confirm("Leave current match?");
+    if (!confirmed) return false;
+
+    const winnerSymbol = otherSymbol(state.symbol);
+    const update = {
+      status: "finished",
+      winner: playerNameBySymbol(room, winnerSymbol),
+      result_type: "left",
+      updated_at: nowIso(),
+    };
+
+    const { data, error } = await client
+      .from("multiplayer_rooms")
+      .update(update)
+      .eq("id", room.id)
+      .eq("status", "playing")
+      .select()
+      .single();
+
+    if (error || !data) {
+      setError(formatSupabaseError(error));
+      return false;
+    }
+
+    await insertHistory(data);
+    return true;
+  }
+
+  async function backToFindMatch() {
+    window.TacTicAudio?.playClick();
+    const room = state.room;
+
+    if (room?.status === "waiting") {
+      await deleteWaitingRoom(room);
+    } else if (room?.status === "playing") {
+      const didLeave = await leavePlayingRoom(room);
+      if (!didLeave) return;
+    }
+
+    cleanupRealtime();
+    state.room = null;
+    state.symbol = null;
+    state.insightHintIndex = null;
+    if (elements.multiplayerChatMessages) elements.multiplayerChatMessages.innerHTML = "";
+    if (elements.multiplayerGamePanel) elements.multiplayerGamePanel.hidden = true;
+    if (elements.multiplayerSetupPanel) elements.multiplayerSetupPanel.hidden = false;
+    setError("");
+    setStatus("Enter a username to begin.");
   }
 
   function subscribeToRoom(roomId) {
@@ -856,7 +949,10 @@
   }
 
   function toggleSound() {
+    const wasMuted = Boolean(window.TacTicAudio?.isMuted?.());
+    if (!wasMuted) window.TacTicAudio?.playClick();
     const muted = window.TacTicAudio?.toggleMuted?.();
+    if (wasMuted) window.TacTicAudio?.playClick();
     if (elements.multiplayerSoundButton) {
       elements.multiplayerSoundButton.textContent = muted ? "Sound Off" : "Sound On";
       elements.multiplayerSoundButton.setAttribute("aria-pressed", String(Boolean(muted)));
@@ -906,6 +1002,7 @@
     const message = String(elements.multiplayerChatInput?.value || "").trim().slice(0, 120);
     if (!message) return;
 
+    window.TacTicAudio?.playClick();
     elements.multiplayerChatInput.value = "";
     await client.from("multiplayer_messages").insert({
       room_id: state.room.id,
@@ -934,10 +1031,12 @@
   function bindEvents() {
     cacheElements();
     elements.findMatchButton?.addEventListener("click", findMatch);
-    elements.backToModeButton?.addEventListener("click", () => {
+    const backToModeButton = elements.backToModeFromFindMatch || elements.backToModeButton;
+    backToModeButton?.addEventListener("click", () => {
       window.TacTicAudio?.playClick();
       backToModeSelect();
     });
+    elements.backToFindMatchBtn?.addEventListener("click", backToFindMatch);
     elements.multiplayerChatForm?.addEventListener("submit", sendMessage);
     elements.multiplayerInsightButton?.addEventListener("click", useInsight);
     elements.multiplayerUndoButton?.addEventListener("click", useUndo);

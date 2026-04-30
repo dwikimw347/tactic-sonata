@@ -12,7 +12,7 @@ create table if not exists public.multiplayer_rooms (
   skill_state jsonb not null default '{"player_x":{"insight":2,"undo":1,"shield":"ready"},"player_o":{"insight":2,"undo":1,"shield":"ready"}}'::jsonb,
   move_history jsonb not null default '[]'::jsonb,
   winner text,
-  result_type text check (result_type in ('win', 'draw', 'afk')),
+  result_type text check (result_type in ('win', 'draw', 'afk', 'left')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   last_move_at timestamptz not null default now()
@@ -39,7 +39,7 @@ create table if not exists public.multiplayer_history (
   player_x text,
   player_o text,
   winner text,
-  result_type text not null check (result_type in ('win', 'draw', 'afk')),
+  result_type text not null check (result_type in ('win', 'draw', 'afk', 'left')),
   started_at timestamptz,
   ended_at timestamptz not null default now()
 );
@@ -51,6 +51,20 @@ create index if not exists idx_multiplayer_messages_created_at on public.multipl
 create index if not exists idx_multiplayer_history_player_x on public.multiplayer_history(player_x);
 create index if not exists idx_multiplayer_history_player_o on public.multiplayer_history(player_o);
 create index if not exists idx_multiplayer_history_ended_at on public.multiplayer_history(ended_at);
+
+alter table public.multiplayer_rooms
+  drop constraint if exists multiplayer_rooms_result_type_check;
+
+alter table public.multiplayer_rooms
+  add constraint multiplayer_rooms_result_type_check
+  check (result_type in ('win', 'draw', 'afk', 'left'));
+
+alter table public.multiplayer_history
+  drop constraint if exists multiplayer_history_result_type_check;
+
+alter table public.multiplayer_history
+  add constraint multiplayer_history_result_type_check
+  check (result_type in ('win', 'draw', 'afk', 'left'));
 
 -- Demo mode: keep RLS disabled for simple GitHub Pages testing.
 -- For production, enable RLS and replace this with authenticated policies.

@@ -1213,6 +1213,22 @@ input::placeholder {
   margin-top: 16px;
 }
 
+.secondary-btn {
+  border: 1px solid rgba(194, 55, 78, 0.7);
+  border-radius: 999px;
+  background: rgba(10, 4, 8, 0.7);
+  color: #f5e6dc;
+  cursor: pointer;
+  padding: 8px 14px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.secondary-btn:hover {
+  border-color: rgba(214, 170, 97, 0.75);
+  box-shadow: 0 0 14px rgba(194, 55, 78, 0.45);
+  transform: translateY(-1px);
+}
+
 .multiplayer-error {
   color: var(--crimson-bright);
 }
@@ -1310,6 +1326,13 @@ input::placeholder {
 }
 
 .multiplayer-sound-button {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 10px;
+  font-size: 0.82rem;
+}
+
+.multiplayer-back-button {
   width: 100%;
   min-height: 34px;
   margin-top: 10px;
