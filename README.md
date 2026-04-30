@@ -8,6 +8,7 @@ Aplikasi web Tic Tac Toe frontend + backend dengan lawan AI bernama **Phrolova**
 - Backend Node.js + Express.
 - Komunikasi frontend/backend via REST API.
 - Player vs Phrolova.
+- Realtime online Multiplayer 1 vs 1 via Supabase Realtime.
 - Pilihan simbol X atau O.
 - Difficulty: Easy, Normal, Hard, Impossible, dan Maestro of the Lost Beyond.
 - Minimax optimal untuk mode Impossible.
@@ -17,6 +18,7 @@ Aplikasi web Tic Tac Toe frontend + backend dengan lawan AI bernama **Phrolova**
 - Phrolova AI Skill System: Perfect Cadence, Crimson Interruption, Symphony Prediction, dan Echo Manipulation.
 - Maestro of the Lost Beyond: boss mode sengaja tidak adil dengan ability Resonance Override, Hecate's Shadow, dan Symphony of Rebirth.
 - Restart/reset game.
+- Random matchmaking, chat, AFK win rule, dan match history untuk mode Multiplayer.
 - Dialog Phrolova dengan gaya formal, puitis, dan metafora musik.
 - UI gothic merah-hitam, responsive, hover effect, animasi klik, dan highlight kemenangan.
 - Audio manager dengan placeholder dan fallback aman jika file audio belum tersedia.
@@ -29,6 +31,8 @@ Aplikasi web Tic Tac Toe frontend + backend dengan lawan AI bernama **Phrolova**
   index.html
   css/style.css
   js/app.js
+  js/multiplayer.js
+  js/supabaseConfig.js
   assets/images/
   assets/audio/
 
@@ -51,6 +55,9 @@ Aplikasi web Tic Tac Toe frontend + backend dengan lawan AI bernama **Phrolova**
   playerSkill.test.js
   skillApi.test.js
   phrolovaSkill.test.js
+
+/supabase
+  schema.sql
 
 package.json
 README.md
@@ -80,6 +87,40 @@ http://localhost:3000
 ```bash
 npm test
 ```
+
+## Multiplayer Setup with Supabase
+
+Mode Multiplayer berjalan langsung dari frontend dan tidak memakai Express backend, sehingga bisa dipakai saat deploy ke GitHub Pages.
+
+Langkah setup:
+
+1. Buat project baru di Supabase.
+2. Buka SQL Editor Supabase, lalu jalankan isi file `supabase/schema.sql`.
+3. Di menu Realtime Supabase, enable Realtime untuk tabel:
+   - `multiplayer_rooms`
+   - `multiplayer_messages`
+4. Isi konfigurasi di `client/js/supabaseConfig.js`:
+
+```js
+const SUPABASE_URL = "https://your-project.supabase.co";
+const SUPABASE_ANON_KEY = "your-anon-key";
+```
+
+5. Deploy folder `client` ke GitHub Pages.
+6. Buka game, klik Start Game, lalu pilih Multiplayer.
+
+Catatan keamanan:
+
+- Jangan pernah menaruh service role key di frontend.
+- Gunakan anon key saja untuk GitHub Pages.
+- `supabase/schema.sql` mematikan RLS untuk demo agar random matchmaking mudah dicoba.
+- Untuk production, aktifkan RLS dan buat policy yang lebih ketat untuk insert/select/update room, message, dan history.
+
+Tabel multiplayer:
+
+- `multiplayer_rooms`: state room, board, player, turn, result, dan timestamp AFK.
+- `multiplayer_messages`: chat realtime per room.
+- `multiplayer_history`: hasil match terakhir untuk history user.
 
 ## API Endpoint
 

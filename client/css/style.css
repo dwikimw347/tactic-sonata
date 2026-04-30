@@ -48,7 +48,8 @@ body::before {
 }
 
 button,
-select {
+select,
+input {
   font: inherit;
 }
 
@@ -61,7 +62,8 @@ button {
 }
 
 button:focus-visible,
-select:focus-visible {
+select:focus-visible,
+input:focus-visible {
   outline: 2px solid rgba(214, 170, 97, 0.85);
   outline-offset: 3px;
   box-shadow: 0 0 0 5px rgba(184, 15, 42, 0.2);
@@ -396,6 +398,20 @@ select option:checked,
 select option:hover {
   background-color: #6f0d20;
   color: #fff4ea;
+}
+
+input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(184, 15, 42, 0.45);
+  border-radius: 14px;
+  padding: 0 14px;
+  color: var(--bone);
+  background: rgba(5, 3, 5, 0.72);
+}
+
+input::placeholder {
+  color: rgba(188, 165, 164, 0.72);
 }
 
 .difficulty-description {
@@ -1141,6 +1157,153 @@ select option:hover {
   line-height: 1.6;
 }
 
+.multiplayer-shell {
+  min-height: 100vh;
+}
+
+.multiplayer-setup {
+  display: grid;
+  min-height: min(62vh, 560px);
+  place-items: center;
+  animation: rise 700ms ease both;
+}
+
+.multiplayer-setup-card {
+  width: min(520px, 100%);
+  min-height: 0;
+}
+
+.multiplayer-setup-card h2 {
+  margin: 10px 0 18px;
+  font-family: var(--display);
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+}
+
+.multiplayer-field {
+  display: grid;
+  gap: 8px;
+  color: var(--gold);
+  font-size: 0.76rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.multiplayer-setup-actions {
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.multiplayer-error {
+  color: var(--crimson-bright);
+}
+
+.multiplayer-arena {
+  grid-template-columns: minmax(250px, 320px) minmax(420px, 540px) minmax(250px, 320px);
+}
+
+.multiplayer-player-panel {
+  overflow: hidden;
+}
+
+.multiplayer-profile-card,
+.multiplayer-chat-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(240, 68, 95, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.multiplayer-profile-card strong {
+  color: var(--bone);
+  font-size: 1.08rem;
+  letter-spacing: 0.05em;
+}
+
+.multiplayer-profile-card p,
+.multiplayer-info-line {
+  margin: 0;
+  color: var(--ash);
+  font-family: var(--readable);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.multiplayer-chat-panel {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.multiplayer-chat-messages {
+  min-height: 120px;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 9px;
+  border: 1px solid rgba(214, 170, 97, 0.14);
+  border-radius: 12px;
+  background: rgba(5, 3, 5, 0.42);
+}
+
+.multiplayer-chat-message {
+  color: var(--ash);
+  font-family: var(--readable);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.multiplayer-chat-message + .multiplayer-chat-message {
+  margin-top: 7px;
+}
+
+.multiplayer-chat-message strong {
+  color: var(--gold);
+}
+
+.multiplayer-chat-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.multiplayer-chat-form input {
+  min-height: 36px;
+  border-radius: 999px;
+}
+
+.multiplayer-chat-form button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.multiplayer-stage-card {
+  justify-content: center;
+}
+
+.multiplayer-board.is-locked .cell:not(.marked) {
+  opacity: 0.62;
+}
+
+.multiplayer-history-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.multiplayer-history-list li {
+  padding: 8px 9px;
+  border: 1px solid rgba(242, 223, 215, 0.1);
+  border-radius: 10px;
+  color: var(--ash);
+  font-family: var(--readable);
+  font-size: 0.82rem;
+  background: rgba(255, 255, 255, 0.035);
+}
+
 .hidden {
   display: none !important;
 }
@@ -1418,6 +1581,10 @@ select option:hover {
     min-height: 0;
     align-items: stretch;
     justify-content: center;
+  }
+
+  .multiplayer-arena {
+    grid-template-columns: minmax(250px, 310px) minmax(420px, 520px) minmax(250px, 310px);
   }
 
   .phrolova-card,
@@ -1739,6 +1906,15 @@ select option:hover {
   .dialog-card blockquote::before {
     font-size: 1.7rem;
   }
+
+  .multiplayer-profile-card,
+  .multiplayer-chat-panel {
+    padding: 10px;
+  }
+
+  .multiplayer-chat-messages {
+    max-height: 180px;
+  }
 }
 
 @media (max-width: 980px) {
@@ -1777,8 +1953,26 @@ select option:hover {
   .phrolova-divider,
   .phrolova-dialog,
   .left-control-buttons,
-  .phrolova-video {
+  .phrolova-video,
+  .multiplayer-profile-card,
+  .multiplayer-chat-panel {
     grid-column: 1 / -1;
+  }
+
+  .multiplayer-arena {
+    grid-template-columns: 1fr;
+  }
+
+  .multiplayer-player-panel {
+    order: 2;
+  }
+
+  .multiplayer-stage-card {
+    order: 1;
+  }
+
+  .multiplayer-side-panels {
+    order: 3;
   }
 
   .portrait,
@@ -1852,6 +2046,10 @@ select option:hover {
   .board {
     grid-template-columns: repeat(3, minmax(70px, 1fr));
     padding: 10px;
+  }
+
+  .multiplayer-chat-form {
+    grid-template-columns: 1fr;
   }
 
   .cell {

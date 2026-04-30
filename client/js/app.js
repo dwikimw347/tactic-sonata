@@ -1460,12 +1460,16 @@ function bindIntroFlow() {
   elements.vsPhrolovaBtn?.addEventListener('click', () => {
     if (elements.modeSelectScreen) elements.modeSelectScreen.hidden = true;
     if (elements.gameScreen) elements.gameScreen.hidden = false;
+    const multiplayerScreen = document.getElementById('multiplayerScreen');
+    if (multiplayerScreen) multiplayerScreen.hidden = true;
   });
 
   elements.multiplayerBtn?.addEventListener('click', () => {
-    if (elements.multiplayerMessage) {
-      elements.multiplayerMessage.textContent = 'Multiplayer will be composed later.';
+    if (window.TacTicMultiplayer?.showSetup) {
+      window.TacTicMultiplayer.showSetup();
+      return;
     }
+    if (elements.multiplayerMessage) elements.multiplayerMessage.textContent = 'Supabase is not configured yet.';
   });
 }
 

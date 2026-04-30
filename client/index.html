@@ -222,6 +222,89 @@
     </main>
   </section>
 
+  <section id="multiplayerScreen" hidden>
+    <main class="app-shell multiplayer-shell">
+      <header class="hero">
+        <p class="eyebrow">Realtime online duel</p>
+        <h1>TacTic Sonata</h1>
+        <p class="hero-copy">Two players, nine movements, one final note.</p>
+      </header>
+
+      <section id="multiplayerSetupPanel" class="multiplayer-setup" aria-label="Multiplayer matchmaking">
+        <div class="setup-card multiplayer-setup-card">
+          <span class="setup-label">Multiplayer</span>
+          <h2>Find a Performance Partner</h2>
+          <label class="multiplayer-field">
+            <span>Username</span>
+            <input id="multiplayerUsernameInput" type="text" minlength="2" maxlength="16" autocomplete="nickname" placeholder="Your name">
+          </label>
+          <div class="control-row multiplayer-setup-actions">
+            <button id="findMatchButton" class="primary-button" type="button">Find Match</button>
+            <button id="backToModeButton" class="ghost-button" type="button">Back</button>
+          </div>
+          <p id="multiplayerSetupError" class="mode-message multiplayer-error" aria-live="polite"></p>
+          <p id="multiplayerStatusText" class="mode-message" aria-live="polite">Enter a username to begin.</p>
+        </div>
+      </section>
+
+      <section id="multiplayerGamePanel" class="arena multiplayer-arena" aria-label="Multiplayer arena" hidden>
+        <aside class="phrolova-card multiplayer-player-panel">
+          <p class="role">Players</p>
+          <section class="multiplayer-profile-card">
+            <span class="setup-label">Your Profile</span>
+            <strong id="multiplayerYouName">You</strong>
+            <p id="multiplayerYouSymbol">You are -</p>
+          </section>
+
+          <section class="multiplayer-profile-card">
+            <span class="setup-label">Opponent Profile</span>
+            <strong id="multiplayerOpponentName">Waiting...</strong>
+            <p id="multiplayerOpponentSymbol">Opponent is -</p>
+          </section>
+
+          <section class="multiplayer-chat-panel" aria-label="Multiplayer chat">
+            <span class="setup-label">Chat</span>
+            <div id="multiplayerChatMessages" class="multiplayer-chat-messages" aria-live="polite"></div>
+            <form id="multiplayerChatForm" class="multiplayer-chat-form">
+              <input id="multiplayerChatInput" type="text" maxlength="120" placeholder="Write a message">
+              <button class="secondary-button" type="submit">Send</button>
+            </form>
+          </section>
+        </aside>
+
+        <section class="stage-card multiplayer-stage-card">
+          <div class="stage-header">
+            <div>
+              <span class="setup-label">Current Stage</span>
+              <h2 id="multiplayerTurnLabel">Awaiting match</h2>
+            </div>
+          </div>
+
+          <div id="multiplayerBoard" class="board multiplayer-board" aria-label="Multiplayer board"></div>
+        </section>
+
+        <aside class="side-panels multiplayer-side-panels">
+          <section class="score-card" aria-label="Multiplayer match info">
+            <span class="setup-label">Match Info</span>
+            <div class="score-section">
+              <h3>Room</h3>
+              <p id="multiplayerRoomInfo" class="multiplayer-info-line">No room yet.</p>
+            </div>
+            <div class="score-section">
+              <h3>Current Turn</h3>
+              <p id="multiplayerTurnInfo" class="multiplayer-info-line">Awaiting match.</p>
+              <p id="multiplayerAfkInfo" class="multiplayer-info-line">AFK limit: 20 seconds.</p>
+            </div>
+            <div class="score-section">
+              <h3>Latest Matches</h3>
+              <ul id="multiplayerHistoryList" class="multiplayer-history-list"></ul>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  </section>
+
   <div id="matchModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-panel">
       <span class="setup-label">Finale</span>
@@ -231,6 +314,9 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabaseConfig.js"></script>
+  <script src="js/multiplayer.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
