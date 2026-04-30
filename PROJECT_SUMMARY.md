@@ -22,6 +22,7 @@ TacTic Sonata is a gothic-themed Tic Tac Toe web game with two main play modes:
 - Multiplayer online mode with random matchmaking.
 - Gothic red-black UI theme.
 - Sound effects, background music, Phrolova voice lines, and avatar/video assets.
+- Phrolova welcome dialog and `phrolova_welcome.mp3` when entering Vs Phrolova mode.
 - AI difficulty levels:
   - Easy
   - Normal
@@ -61,6 +62,20 @@ Backend API URL can be configured with:
 ```js
 window.TACTIC_SONATA_API_BASE_URL = "https://your-render-backend.onrender.com";
 ```
+
+When entering Vs Phrolova from the mode select screen, the UI shows a themed welcome dialog:
+
+```text
+Welcome, wanderer, to this humble grid. I am Phrolova, the silent conductor of souls... come, let us begin our solemn symphony of life and death.
+```
+
+The welcome audio is:
+
+```text
+client/assets/audio/phrolova_welcome.mp3
+```
+
+It plays once when entering Vs Phrolova and respects the Sound On/Off toggle.
 
 ## Multiplayer Mode
 
@@ -137,6 +152,7 @@ client/js/audioManager.js
 client/js/skillManager.js
 client/js/multiplayer.js
 client/js/supabaseConfig.js
+client/assets/audio/phrolova_welcome.mp3
 server/server.js
 server/routes/gameRoutes.js
 server/controllers/gameController.js
