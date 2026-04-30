@@ -228,12 +228,9 @@ function canUseHecatesShadow(gameState) {
   ensureMaestroState(gameState);
   if (!isMaestro(gameState)) return false;
   if (gameState.temporaryEffects?.hecateShadow) return false;
-  if (gameState.maestro.shadowCount >= 3) return false;
+  if (gameState.maestro.shadowCount >= 2) return false;
   const target = findHecateShadowTarget(gameState);
-  if (!target) return false;
-  if (gameState.maestro.shadowCount === 0) return true;
-  if (!gameState.abilityUsage.resonanceOverrideUsed || !gameState.abilityUsage.symphonyOfRebirthUsed) return false;
-  return target.reason === 'direct-threat' || target.reason === 'fork-potential';
+  return Boolean(target);
 }
 
 function applyHecatesShadow(gameState) {
@@ -362,6 +359,25 @@ function chooseMaestroBaitMove(gameState) {
   return preferred ?? findBestMove(gameState.board, gameState.aiSymbol, gameState.playerSymbol);
 }
 
+function createThreatForPlayer(gameState) {
+  ensureMaestroState(gameState);
+  const moves = getAvailableMoves(gameState.board);
+  if (!isMaestro(gameState) || gameState.maestro.shadowCount > 0 || moves.length === 0) return null;
+
+  const playerHasMark = gameState.board.some((cell) => cell === gameState.playerSymbol);
+  if (!playerHasMark) return null;
+
+  const blockingMove = findBlockingMove(gameState.board, gameState.playerSymbol);
+  if (blockingMove !== null) {
+    const nonBlockingMove = moves.find((move) => move !== blockingMove);
+    if (nonBlockingMove !== undefined) return nonBlockingMove;
+  }
+
+  const bestMove = findBestMove(gameState.board, gameState.aiSymbol, gameState.playerSymbol);
+  const baitMove = [1, 3, 5, 7, 0, 2, 6, 8, 4].find((index) => moves.includes(index) && index !== bestMove);
+  return baitMove ?? moves[0];
+}
+
 module.exports = {
   MAESTRO_DIFFICULTY,
   canUseHecatesShadow,
@@ -375,4 +391,5 @@ module.exports = {
   pushBoardHistory,
   toPublicMaestroAbility,
   chooseMaestroBaitMove,
+  createThreatForPlayer,
 };

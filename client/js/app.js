@@ -633,14 +633,9 @@ function applyLocalResonance(game) {
 
 function applyLocalHecate(game) {
   ensureLocalMaestroState(game);
-  if (game.difficulty !== 'maestro' || game.maestro.shadowCount >= 3 || game.temporaryEffects.hecateShadow) return null;
+  if (game.difficulty !== 'maestro' || game.maestro.shadowCount >= 2 || game.temporaryEffects.hecateShadow) return null;
   const target = findLocalHecateTarget(game);
   if (!target?.playerCells?.length) return null;
-  if (game.maestro.shadowCount > 0
-    && (!game.abilityUsage.resonanceOverrideUsed || !game.abilityUsage.symphonyOfRebirthUsed)) {
-    return null;
-  }
-  if (game.maestro.shadowCount > 0 && !['direct-threat', 'fork-potential'].includes(target.reason)) return null;
   const shadowCell = target.playerCells[0];
   game.boardHistory.push([...game.board]);
   game.board[shadowCell] = null;
@@ -723,6 +718,22 @@ function chooseLocalMaestroBaitMove(game) {
   return [4, 0, 2, 6, 8, 1, 3, 5, 7].find((index) => moves.includes(index)) ?? findBestMove(game.board, game.aiSymbol, game.playerSymbol);
 }
 
+function createLocalThreatForPlayer(game) {
+  ensureLocalMaestroState(game);
+  const moves = getAvailableMoves(game.board);
+  if (game.difficulty !== 'maestro' || game.maestro.shadowCount > 0 || moves.length === 0) return null;
+  if (!game.board.some((cell) => cell === game.playerSymbol)) return null;
+
+  const blockingMove = findLineGap(game.board, game.playerSymbol);
+  if (blockingMove !== null) {
+    const nonBlockingMove = moves.find((move) => move !== blockingMove);
+    if (nonBlockingMove !== undefined) return nonBlockingMove;
+  }
+
+  const bestMove = findBestMove(game.board, game.aiSymbol, game.playerSymbol);
+  return [1, 3, 5, 7, 0, 2, 6, 8, 4].find((index) => moves.includes(index) && index !== bestMove) ?? moves[0];
+}
+
 function armLocalHarmonyShield(game) {
   const shield = game.skills.harmonyShield;
   if (shield.used || game.status !== 'playing' || game.currentTurn !== game.playerSymbol) return;
@@ -740,7 +751,7 @@ function performLocalAiMove(game) {
     board: game.board,
     aiSymbol: game.aiSymbol,
     playerSymbol: game.playerSymbol,
-    difficulty: game.difficulty,
+    difficulty: game.difficulty === 'maestro' ? 'impossible' : game.difficulty,
   });
 
   if (game.difficulty === 'maestro') {
@@ -763,13 +774,33 @@ function performLocalAiMove(game) {
   }
 
   if (game.difficulty === 'maestro') {
+    if (maestroAbility) {
+      aiChoice = {
+        ...aiChoice,
+        skill: maestroAbility.name,
+        dialogue: maestroAbility.dialogue,
+        effect: maestroAbility.effect,
+        strategy: `maestro-${maestroAbility.reason || 'shadow'}`,
+      };
+    } else {
+      const forcedThreatMove = createLocalThreatForPlayer(game);
+      if (forcedThreatMove !== null) {
+        aiChoice = {
+          skill: 'Echo Manipulation',
+          dialogue: 'Not every note follows logic... some are meant to deceive.',
+          effect: 'phrolova-random',
+          strategy: 'maestro-force-threat',
+          move: forcedThreatMove,
+        };
+      }
+    }
+  }
+
+  if (aiChoice.move === null || game.board[aiChoice.move]) {
     aiChoice = {
       ...aiChoice,
-      skill: maestroAbility?.name || aiChoice.skill,
-      dialogue: maestroAbility?.dialogue || aiChoice.dialogue,
-      effect: maestroAbility?.effect || aiChoice.effect,
-      strategy: maestroAbility ? 'maestro-bait' : 'maestro-bait',
-      move: chooseLocalMaestroBaitMove(game),
+      strategy: 'minimax-fallback',
+      move: findBestMove(game.board, game.aiSymbol, game.playerSymbol),
     };
   }
 

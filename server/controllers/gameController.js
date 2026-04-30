@@ -1,5 +1,5 @@
 const scoreStore = require('../data/scoreStore');
-const { evaluateBoard } = require('../services/minimaxService');
+const { evaluateBoard, findBestMove } = require('../services/minimaxService');
 const playerSkillService = require('../services/playerSkillService');
 const {
   choosePhrolovaSkill,
@@ -134,25 +134,39 @@ function performAIMove(game) {
     board: game.board,
     aiSymbol: game.aiSymbol,
     playerSymbol: game.playerSymbol,
-    difficulty: game.difficulty,
+    difficulty: game.difficulty === 'maestro' ? 'impossible' : game.difficulty,
   });
 
-  if (aiChoice.move === null || game.board[aiChoice.move]) {
-    game.lastPhrolovaSkill = aiChoice;
-    game.lastMaestroAbility = null;
-    return aiChoice;
+  let effectiveChoice = aiChoice;
+  if (game.difficulty === 'maestro' && !maestroAbility) {
+    const forcedThreatMove = maestroAbilityService.createThreatForPlayer(game);
+    if (forcedThreatMove !== null) {
+      effectiveChoice = {
+        skill: 'Echo Manipulation',
+        dialogue: 'Not every note follows logic... some are meant to deceive.',
+        effect: 'phrolova-random',
+        strategy: 'maestro-force-threat',
+        move: forcedThreatMove,
+      };
+    }
+  } else if (maestroAbility) {
+    effectiveChoice = {
+      ...aiChoice,
+      skill: maestroAbility.name,
+      dialogue: maestroAbility.dialogue,
+      effect: maestroAbility.effect,
+      strategy: `maestro-${maestroAbility.reason || 'shadow'}`,
+    };
   }
 
-  const effectiveChoice = game.difficulty === 'maestro'
-    ? {
-      ...aiChoice,
-      skill: maestroAbility?.name || aiChoice.skill,
-      dialogue: maestroAbility?.dialogue || aiChoice.dialogue,
-      effect: maestroAbility?.effect || aiChoice.effect,
-      strategy: maestroAbility ? `maestro-${maestroAbility.reason || 'bait'}` : 'maestro-bait',
-      move: maestroAbilityService.chooseMaestroBaitMove(game),
-    }
-    : aiChoice;
+  if (effectiveChoice.move === null || game.board[effectiveChoice.move]) {
+    const fallbackMove = findBestMove(game.board, game.aiSymbol, game.playerSymbol);
+    effectiveChoice = {
+      ...effectiveChoice,
+      strategy: 'minimax-fallback',
+      move: fallbackMove,
+    };
+  }
   const move = effectiveChoice.move;
 
   if (move === null || game.board[move]) {
