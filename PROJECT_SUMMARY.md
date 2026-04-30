@@ -92,6 +92,14 @@ TacTic Sonata is a gothic-themed Tic Tac Toe web game with two main play modes:
   - Winner checks happen after Maestro temporary effects are restored and board state is final.
   - After Hecate's Shadow, AI avoids filling the temporary shadow cell when another move exists, making restore behavior clearer.
   - Current Maestro pipeline is: Maestro abilities -> force threat if needed -> normal Phrolova skills -> minimax fallback.
+- Strengthened Maestro as a no-draw/no-loss boss mode:
+  - Added critical-state detection for imminent player loss threats, draw paths, and missing Phrolova winning paths.
+  - Maestro now intervenes before player wins or draws are finalized.
+  - Symphony of Rebirth is prioritized for draw/loss danger when still available.
+  - Resonance Override can break draw symmetry and reopen Phrolova winning paths.
+  - Hecate's Shadow can emergency-remove a completed player line; when this happens Phrolova must occupy the shadow cell so the player mark does not return.
+  - Maestro fallback uses anti-draw move scoring instead of plain minimax, penalizing draw outcomes and rewarding active winning paths.
+  - Backend and GitHub Pages static fallback now share the same anti-draw / anti-loss behavior.
 
 ## Vs Phrolova Mode
 
@@ -322,7 +330,7 @@ node --check client/js/app.js
 npm.cmd test
 ```
 
-Result: 7 test suites passed, 51 tests passed.
+Result: 7 test suites passed, 51 tests passed. Additional Maestro simulations using first-open, center/corner priority, and last-open player strategies all ended with Phrolova winning.
 
 ## Notes
 

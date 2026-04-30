@@ -112,9 +112,47 @@ function countOpenThreats(board, symbol) {
   }, 0);
 }
 
+function isLossImminent(board, playerSymbol) {
+  if (findPlayerThreat(board, playerSymbol)) return true;
+
+  return getAvailableMoves(board).some((move) => {
+    const nextBoard = [...board];
+    nextBoard[move] = playerSymbol;
+    return countOpenThreats(nextBoard, playerSymbol) >= 2;
+  });
+}
+
+function hasWinningPath(board, aiSymbol) {
+  const opponentSymbol = aiSymbol === 'X' ? 'O' : 'X';
+  return WIN_PATTERNS.some((pattern) => {
+    const hasEmptyCell = pattern.some((index) => !board[index]);
+    const isNotBlocked = pattern.every((index) => board[index] !== opponentSymbol);
+    return hasEmptyCell && isNotBlocked;
+  });
+}
+
+function isDrawImminent(board, aiSymbol) {
+  const outcome = evaluateBoard(board);
+  if (outcome.winner) return false;
+
+  const filledCells = board.filter(Boolean).length;
+  return filledCells >= 7 || !hasWinningPath(board, aiSymbol);
+}
+
 function findHecateShadowTarget(gameState) {
   const { board, playerSymbol } = gameState;
   const profiles = WIN_PATTERNS.map((pattern) => getLineProfile(board, pattern, playerSymbol));
+  const completedLine = profiles.find((profile) => profile.symbolCells.length === 3);
+  if (completedLine) {
+    return {
+      pattern: completedLine.pattern,
+      playerCells: completedLine.symbolCells,
+      emptyCell: completedLine.symbolCells[0],
+      reason: 'completed-line',
+      mustOccupyShadow: true,
+    };
+  }
+
   const directThreat = profiles.find((profile) => profile.symbolCells.length === 2 && profile.emptyCells.length === 1);
   if (directThreat) {
     return {
@@ -196,6 +234,29 @@ function getResonanceOverrideTarget(gameState) {
     return { index: threat.playerCells[0], reason: 'threat-denial', pattern: threat.pattern };
   }
 
+  if (isDrawImminent(board, aiSymbol) || !hasWinningPath(board, aiSymbol)) {
+    let bestTarget = null;
+    let bestScore = -Infinity;
+
+    for (const index of playerCells) {
+      const nextBoard = [...board];
+      nextBoard[index] = aiSymbol;
+      const outcome = evaluateBoard(nextBoard);
+      const score = (outcome.winner === aiSymbol ? 100 : 0)
+        + countOpenThreats(nextBoard, aiSymbol) * 8
+        + (hasWinningPath(nextBoard, aiSymbol) ? 4 : -12);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestTarget = index;
+      }
+    }
+
+    if (bestTarget !== null) {
+      return { index: bestTarget, reason: 'anti-draw-conversion' };
+    }
+  }
+
   return null;
 }
 
@@ -227,9 +288,10 @@ function canUseHecatesShadow(gameState) {
   ensureMaestroState(gameState);
   if (!isMaestro(gameState)) return false;
   if (gameState.temporaryEffects?.hecateShadow) return false;
-  if (gameState.maestro.shadowCount >= 2) return false;
-  if (gameState.maestro.shadowCount > 0 && !gameState.abilityUsage.symphonyOfRebirthUsed) return false;
   const target = findHecateShadowTarget(gameState);
+  if (!target) return false;
+  if (gameState.maestro.shadowCount >= 2 && target.reason !== 'completed-line') return false;
+  if (gameState.maestro.shadowCount > 0 && !gameState.abilityUsage.symphonyOfRebirthUsed) return false;
   return Boolean(target);
 }
 
@@ -246,6 +308,7 @@ function applyHecatesShadow(gameState) {
     symbol: gameState.playerSymbol,
     pattern: threat.pattern,
     reason: threat.reason,
+    mustOccupy: Boolean(threat.mustOccupyShadow),
   };
   gameState.maestro.shadowCount += 1;
   gameState.maestro.shadowUsedCount = gameState.maestro.shadowCount;
@@ -254,6 +317,7 @@ function applyHecatesShadow(gameState) {
     shadowCell,
     threatCell: threat.emptyCell,
     reason: threat.reason,
+    mustOccupyShadow: Boolean(threat.mustOccupyShadow),
   });
 }
 
@@ -275,6 +339,9 @@ function canUseSymphonyOfRebirth(gameState, outcome = evaluateBoard(gameState.bo
   if (gameState.boardHistory.length < 1) return false;
   if (outcome.winner === gameState.playerSymbol || outcome.isDraw) return true;
   if (findPlayerThreat(gameState.board, gameState.playerSymbol)) return true;
+  if (isLossImminent(gameState.board, gameState.playerSymbol)) return true;
+  if (isDrawImminent(gameState.board, gameState.aiSymbol)) return true;
+  if (!hasWinningPath(gameState.board, gameState.aiSymbol)) return true;
 
   const blockingMove = findBlockingMove(gameState.board, gameState.playerSymbol);
   const winningMove = findWinningMove(gameState.board, gameState.aiSymbol);
@@ -383,6 +450,35 @@ function tryMaestroAbilities(gameState) {
   ensureMaestroState(gameState);
   if (!isMaestro(gameState)) return null;
 
+  if (isLossImminent(gameState.board, gameState.playerSymbol)) {
+    if (canUseHecatesShadow(gameState)) {
+      const shadow = applyHecatesShadow(gameState);
+      if (shadow) return shadow;
+    }
+
+    if (canUseResonanceOverride(gameState)) {
+      const resonance = applyResonanceOverride(gameState);
+      if (resonance) return resonance;
+    }
+
+    if (canUseSymphonyOfRebirth(gameState)) {
+      const rebirth = applySymphonyOfRebirth(gameState);
+      if (rebirth) return rebirth;
+    }
+  }
+
+  if (isDrawImminent(gameState.board, gameState.aiSymbol) || !hasWinningPath(gameState.board, gameState.aiSymbol)) {
+    if (canUseSymphonyOfRebirth(gameState)) {
+      const rebirth = applySymphonyOfRebirth(gameState);
+      if (rebirth) return rebirth;
+    }
+
+    if (canUseResonanceOverride(gameState)) {
+      const resonance = applyResonanceOverride(gameState);
+      if (resonance) return resonance;
+    }
+  }
+
   if (canUseResonanceOverride(gameState)) {
     const resonance = applyResonanceOverride(gameState);
     if (resonance) return resonance;
@@ -416,4 +512,7 @@ module.exports = {
   chooseMaestroBaitMove,
   createThreatForPlayer,
   tryMaestroAbilities,
+  isDrawImminent,
+  isLossImminent,
+  hasWinningPath,
 };

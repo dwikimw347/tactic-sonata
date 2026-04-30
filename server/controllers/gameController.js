@@ -1,5 +1,5 @@
 const scoreStore = require('../data/scoreStore');
-const { checkWinner, evaluateBoard, findBestMove, getAvailableMoves } = require('../services/minimaxService');
+const { checkWinner, evaluateBoard, findBestMove, getAvailableMoves, minimax } = require('../services/minimaxService');
 const playerSkillService = require('../services/playerSkillService');
 const {
   choosePhrolovaSkill,
@@ -108,6 +108,49 @@ function createSkillResult(skill, move, overrides = {}) {
   };
 }
 
+function countPotentialLines(board, symbol) {
+  const opponentSymbol = oppositeSymbol(symbol);
+  return [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6],
+  ].reduce((count, pattern) => {
+    const isOpen = pattern.every((index) => board[index] !== opponentSymbol);
+    const hasSymbol = pattern.some((index) => board[index] === symbol);
+    return count + (isOpen && hasSymbol ? 1 : 0);
+  }, 0);
+}
+
+function getAntiDrawMove(game) {
+  const moves = getAvailableMoves(game.board);
+  if (!moves.length) return null;
+
+  let bestMove = moves[0];
+  let bestScore = -Infinity;
+
+  for (const move of moves) {
+    const nextBoard = [...game.board];
+    nextBoard[move] = game.aiSymbol;
+    const outcome = evaluateBoard(nextBoard);
+    const score = minimax(nextBoard, game.aiSymbol, game.playerSymbol, false, 0);
+    const isDraw = outcome.isDraw && !outcome.winner;
+    const finalScore = score
+      + (outcome.winner === game.aiSymbol ? 100 : 0)
+      - (outcome.winner === game.playerSymbol ? 100 : 0)
+      - (isDraw ? 25 : 0)
+      + countPotentialLines(nextBoard, game.aiSymbol) * 3
+      - countPotentialLines(nextBoard, game.playerSymbol) * 2
+      + (maestroAbilityService.hasWinningPath(nextBoard, game.aiSymbol) ? 6 : -20);
+
+    if (finalScore > bestScore) {
+      bestScore = finalScore;
+      bestMove = move;
+    }
+  }
+
+  return bestMove;
+}
+
 function tryNormalSkills(game) {
   const normalChoice = choosePhrolovaSkill({
     board: game.board,
@@ -120,7 +163,9 @@ function tryNormalSkills(game) {
     return normalChoice;
   }
 
-  const fallbackMove = findBestMove(game.board, game.aiSymbol, game.playerSymbol);
+  const fallbackMove = game.difficulty === 'maestro'
+    ? getAntiDrawMove(game)
+    : findBestMove(game.board, game.aiSymbol, game.playerSymbol);
   if (fallbackMove !== null && !game.board[fallbackMove]) {
     return {
       ...normalChoice,
@@ -138,9 +183,28 @@ function tryNormalSkills(game) {
   }, randomMove);
 }
 
+function tryMaestroTerminalIntervention(game, outcome) {
+  if (game.difficulty !== 'maestro' || (!outcome.winner && !outcome.isDraw)) return null;
+
+  if (maestroAbilityService.canUseSymphonyOfRebirth(game, outcome)) {
+    return maestroAbilityService.applySymphonyOfRebirth(game);
+  }
+
+  if (maestroAbilityService.canUseHecatesShadow(game)) {
+    return maestroAbilityService.applyHecatesShadow(game);
+  }
+
+  if (maestroAbilityService.canUseResonanceOverride(game)) {
+    return maestroAbilityService.applyResonanceOverride(game);
+  }
+
+  return null;
+}
+
 function avoidTemporaryShadowMove(game, choice) {
   const shadow = game.temporaryEffects?.hecateShadow;
   if (!shadow || choice?.move !== shadow.index) return choice;
+  if (shadow.mustOccupy) return choice;
 
   const alternatives = getAvailableMoves(game.board).filter((move) => move !== shadow.index);
   if (!alternatives.length) return choice;
@@ -180,6 +244,9 @@ function performAIMove(game) {
 
   if (game.difficulty === 'maestro') {
     maestroAbility = maestroAbilityService.tryMaestroAbilities(game);
+    if (!maestroAbility && game.temporaryEffects?.hecateShadow && game.lastMaestroAbility?.effect === 'hecate-shadow') {
+      maestroAbility = game.lastMaestroAbility;
+    }
     if (maestroAbility?.effect === 'resonance-override' || maestroAbility?.effect === 'symphony-rebirth') {
       game.lastMaestroAbility = maestroAbility;
       applyOutcomeIfFinished(game);
@@ -222,18 +289,22 @@ function performAIMove(game) {
   }
 
   if (maestroAbility?.effect === 'hecate-shadow') {
+    const shadow = game.temporaryEffects?.hecateShadow;
     effectiveChoice = {
       ...effectiveChoice,
       skill: maestroAbility.name,
       dialogue: maestroAbility.dialogue,
       effect: maestroAbility.effect,
       strategy: `maestro-${maestroAbility.reason || 'shadow'}`,
+      move: shadow?.mustOccupy ? shadow.index : effectiveChoice?.move,
     };
     effectiveChoice = avoidTemporaryShadowMove(game, effectiveChoice);
   }
 
   if (!effectiveChoice || effectiveChoice.move === null || game.board[effectiveChoice.move]) {
-    const fallbackMove = findBestMove(game.board, game.aiSymbol, game.playerSymbol);
+    const fallbackMove = game.difficulty === 'maestro'
+      ? getAntiDrawMove(game)
+      : findBestMove(game.board, game.aiSymbol, game.playerSymbol);
     effectiveChoice = {
       ...(effectiveChoice || {}),
       skill: effectiveChoice?.skill || 'Symphony Prediction',
@@ -350,8 +421,6 @@ function getStatus(req, res) {
 
 function startGame(req, res) {
   const game = createGame(req.body || {});
-  console.log('[START API] req.body.difficulty:', req.body?.difficulty);
-  console.log('[START API] stored difficulty:', game.difficulty);
   res.json(apiResponse(true, 'Let the stage be set.', {
     game: publicGameState(game),
     phrolovaSkill: toPublicPhrolovaSkill(game.lastPhrolovaSkill),
@@ -362,7 +431,6 @@ function startGame(req, res) {
 function makeMove(req, res) {
   const game = scoreStore.getCurrentGame();
   const index = Number(req.body?.index);
-  console.log('[MOVE API] active difficulty:', game?.difficulty);
 
   if (!game || game.status !== 'playing') {
     return res.status(400).json(apiResponse(false, 'No active performance awaits your move.'));
@@ -401,10 +469,14 @@ function makeMove(req, res) {
   let maestroAbility = null;
   const playerOutcome = evaluateBoard(game.board);
   const playerEndedRound = Boolean(playerOutcome.winner || playerOutcome.isDraw);
-  if (game.difficulty === 'maestro' && playerEndedRound && maestroAbilityService.canUseSymphonyOfRebirth(game, playerOutcome)) {
-    maestroAbility = maestroAbilityService.applySymphonyOfRebirth(game);
+  if (game.difficulty === 'maestro' && playerEndedRound) {
+    maestroAbility = tryMaestroTerminalIntervention(game, playerOutcome);
     game.lastMaestroAbility = maestroAbility;
-    applyOutcomeIfFinished(game);
+    if (maestroAbility?.effect === 'resonance-override' || maestroAbility?.effect === 'symphony-rebirth') {
+      applyOutcomeIfFinished(game);
+    } else if (!maestroAbility) {
+      applyOutcomeIfFinished(game);
+    }
   } else {
     applyOutcomeIfFinished(game);
   }
