@@ -79,6 +79,12 @@ TacTic Sonata is a gothic-themed Tic Tac Toe web game with two main play modes:
   - `handlePhrolovaTurn()` centralizes Phrolova dialog updates.
   - Player cell clicks no longer retrigger old Maestro ability dialogs from stale game state.
   - Dialog changes are limited to Phrolova move, Maestro ability activation, or end-state win/lose/draw.
+- Fixed Maestro Hecate/fallback AI flow:
+  - Hecate's Shadow is no longer blocked by Resonance/Symphony prerequisites.
+  - Hecate can trigger consistently from broader threat lines and is capped to avoid endless spam.
+  - Added forcing strategy so Maestro can intentionally create a player threat when Hecate has not appeared yet.
+  - Maestro decision priority is now: Maestro abilities -> normal Phrolova skills -> minimax fallback.
+  - The same Hecate/forcing/fallback behavior exists in the GitHub Pages static fallback.
 
 ## Vs Phrolova Mode
 
