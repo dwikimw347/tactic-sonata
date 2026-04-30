@@ -23,6 +23,8 @@ TacTic Sonata is a gothic-themed Tic Tac Toe web game with two main play modes:
 - Gothic red-black UI theme.
 - Sound effects, background music, Phrolova voice lines, and avatar/video assets.
 - Phrolova welcome dialog and `phrolova_welcome.mp3` when entering Vs Phrolova mode.
+- Back navigation between title/mode/game screens without page reload.
+- Centralized Phrolova voice playback so welcome/dialog voices do not overlap.
 - AI difficulty levels:
   - Easy
   - Normal
@@ -42,6 +44,29 @@ TacTic Sonata is a gothic-themed Tic Tac Toe web game with two main play modes:
   - Resonance Override
   - Hecate's Shadow
   - Symphony of Rebirth
+
+## Latest Updates
+
+- Added Back buttons:
+  - Vs Phrolova -> Mode Select
+  - Multiplayer Find Match -> Mode Select
+  - Multiplayer Game -> Find Match / Cancel Search / Leave Match
+- Added click SFX for important local user interactions across Vs Phrolova and Multiplayer.
+- Fixed mode audio cleanup:
+  - Background music stops when returning to Mode Select.
+  - Multiplayer background music stops when leaving the arena.
+  - Phrolova voice stops when leaving Vs Phrolova.
+- Fixed Phrolova voice overlap:
+  - Welcome voice and dialog voices now share one `currentPhrolovaVoice` controller.
+  - Starting match, next round, reset, Sound Off, and new dialog playback stop the previous Phrolova voice first.
+- Improved Maestro of the Lost Beyond:
+  - Maestro no longer behaves like fair Impossible minimax.
+  - Backend and GitHub Pages static fallback both use aggressive Maestro ability logic.
+  - Hecate's Shadow can trigger from direct threats, fork potential, and developing player lines.
+  - Resonance Override can convert for victory, create forks, or steal player momentum.
+  - Symphony of Rebirth triggers more aggressively before player wins/draws are finalized.
+  - Maestro tracks `shadowCount`, `resonanceUsed`, and `symphonyUsed`.
+  - Maestro uses bait / controlled-loss style moves before finishing with stronger play.
 
 ## Vs Phrolova Mode
 
@@ -77,6 +102,8 @@ client/assets/audio/phrolova_welcome.mp3
 
 It plays once when entering Vs Phrolova and respects the Sound On/Off toggle.
 
+All Phrolova voice lines now use one shared controller in `client/js/app.js`, so only one Phrolova voice can play at a time.
+
 ## Multiplayer Mode
 
 Multiplayer is isolated from Phrolova AI logic and does not use Express.
@@ -103,6 +130,11 @@ Multiplayer features:
   - `assets/audio/background.wav`
   - `assets/audio/click.wav`
   - multiplayer sound toggle
+- Back/leave controls:
+  - Back to Mode Select from Find Match
+  - Cancel Search while waiting
+  - Leave Match while playing, with opponent win recorded as `left`
+  - Back to Find Match after finished games
 - Player Skills synced through Supabase:
   - Insight Move: 2 uses, highlights a recommended cell.
   - Undo Move: 1 use, rolls back the player's latest move before the opponent replies.
@@ -134,6 +166,7 @@ Tables:
   - realtime chat messages per room
 - `multiplayer_history`
   - completed match records
+  - `result_type` supports `win`, `draw`, `afk`, and `left`
 
 Realtime should be enabled for:
 
@@ -218,6 +251,8 @@ alter table public.multiplayer_rooms
   add column if not exists move_history jsonb not null default '[]'::jsonb;
 ```
 
+If the database existed before Leave Match support, also run the latest constraint migration in `supabase/schema.sql` so `result_type = 'left'` is accepted.
+
 ## Current Data Storage
 
 - Vs Phrolova backend mode: in-memory Node.js state.
@@ -241,6 +276,17 @@ Current automated test suite:
 - Supertest
 - 7 test suites
 - 51 tests
+
+Latest validation run:
+
+```bash
+node --check server/services/maestroAbilityService.js
+node --check server/controllers/gameController.js
+node --check client/js/app.js
+npm.cmd test
+```
+
+Result: 7 test suites passed, 51 tests passed.
 
 ## Notes
 
