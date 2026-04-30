@@ -73,6 +73,12 @@ TacTic Sonata is a gothic-themed Tic Tac Toe web game with two main play modes:
   - Symphony of Rebirth uses `client/assets/audio/phrolova_symphony_of_rebirth.mp3`.
   - Ability dialog/audio has priority over normal playing/win/lose/draw dialog when an ability activates.
   - Ability names are normalized on the frontend so backend/local fallback naming differences still resolve correctly.
+- Fixed Maestro ability toast and dialog trigger behavior:
+  - Added `#abilityToast` below the board with timed show/hide styling.
+  - `showAbilityToast()` uses one timer controller so Symphony of Rebirth and other ability notices do not get stuck.
+  - `handlePhrolovaTurn()` centralizes Phrolova dialog updates.
+  - Player cell clicks no longer retrigger old Maestro ability dialogs from stale game state.
+  - Dialog changes are limited to Phrolova move, Maestro ability activation, or end-state win/lose/draw.
 
 ## Vs Phrolova Mode
 
