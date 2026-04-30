@@ -69,6 +69,8 @@ Multiplayer is isolated from Phrolova AI logic and does not use Express.
 It uses:
 
 - `client/js/multiplayer.js`
+- `client/js/audioManager.js`
+- `client/js/skillManager.js`
 - `client/js/supabaseConfig.js`
 - Supabase tables from `supabase/schema.sql`
 
@@ -82,11 +84,14 @@ Multiplayer features:
 - Random first turn
 - Realtime board sync
 - Realtime chat
-- Background music and click SFX
+- Background music and click SFX:
+  - `assets/audio/background.wav`
+  - `assets/audio/click.wav`
+  - multiplayer sound toggle
 - Player Skills synced through Supabase:
-  - Insight Move
-  - Undo Move
-  - Harmony Shield
+  - Insight Move: 2 uses, highlights a recommended cell.
+  - Undo Move: 1 use, rolls back the player's latest move before the opponent replies.
+  - Harmony Shield: 1 automatic shield, cancels one opponent winning move.
 - 20-second AFK rule
 - Win/draw/AFK result handling
 - Match history, latest 5 matches
@@ -109,6 +114,7 @@ Tables:
 
 - `multiplayer_rooms`
   - room status, players, board, turn, skills, move history, winner, result, timestamps
+  - includes `skill_state` and `move_history`
 - `multiplayer_messages`
   - realtime chat messages per room
 - `multiplayer_history`
@@ -127,6 +133,8 @@ Realtime should be enabled for:
 client/index.html
 client/css/style.css
 client/js/app.js
+client/js/audioManager.js
+client/js/skillManager.js
 client/js/multiplayer.js
 client/js/supabaseConfig.js
 server/server.js
@@ -184,6 +192,16 @@ const SUPABASE_ANON_KEY = "your-anon-public-key";
 
 Never expose the Supabase service role key in frontend code.
 
+If the database already existed before multiplayer skills were added, run this SQL in Supabase:
+
+```sql
+alter table public.multiplayer_rooms
+  add column if not exists skill_state jsonb not null default '{"player_x":{"insight":2,"undo":1,"shield":"ready"},"player_o":{"insight":2,"undo":1,"shield":"ready"}}'::jsonb;
+
+alter table public.multiplayer_rooms
+  add column if not exists move_history jsonb not null default '[]'::jsonb;
+```
+
 ## Current Data Storage
 
 - Vs Phrolova backend mode: in-memory Node.js state.
@@ -194,6 +212,8 @@ Never expose the Supabase service role key in frontend code.
 
 ```bash
 node --check client/js/app.js
+node --check client/js/audioManager.js
+node --check client/js/skillManager.js
 node --check client/js/multiplayer.js
 node --check client/js/supabaseConfig.js
 npm test
@@ -210,5 +230,6 @@ Current automated test suite:
 
 - GitHub Pages cannot run Express, so backend must be deployed separately.
 - Multiplayer works on GitHub Pages because it talks directly to Supabase.
+- Updating GitHub updates GitHub Pages and can trigger Render auto deploy, but Supabase schema changes must be run manually in Supabase SQL Editor.
 - For demo, Supabase RLS can be disabled or loose as described in `schema.sql`.
 - For production, RLS policies should be tightened.
