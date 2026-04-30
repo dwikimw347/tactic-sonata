@@ -24,6 +24,8 @@
     historyLoadedFor: "",
     insightHintIndex: null,
     supportsSkillColumns: true,
+    localSkillStateByRoom: {},
+    localMoveHistoryByRoom: {},
   };
 
   const elements = {};
@@ -122,7 +124,7 @@
 
     if (response.error && isMissingSkillColumnError(response.error)) {
       state.supportsSkillColumns = false;
-      setError("Multiplayer works, but Supabase needs skill_state and move_history columns for skills.");
+      setError("Skills are using local fallback. Run Supabase migration for realtime skill sync.");
       response = await client
         .from("multiplayer_rooms")
         .insert(baseRoomPayload(payload))
@@ -138,7 +140,7 @@
 
     if (response.error && isMissingSkillColumnError(response.error)) {
       state.supportsSkillColumns = false;
-      setError("Multiplayer works, but Supabase needs skill_state and move_history columns for skills.");
+      setError("Skills are using local fallback. Run Supabase migration for realtime skill sync.");
       response = await queryBuilder(baseRoomPayload(payload));
     }
 
@@ -304,13 +306,22 @@
 
   function renderRoom(room) {
     if (!room) return;
+    const defaultSkillState = window.TacTicSkills?.createDefaultSkillState?.();
+    const storedSkillState = state.supportsSkillColumns
+      ? room.skill_state
+      : state.localSkillStateByRoom[room.id] || defaultSkillState;
+    const storedMoveHistory = state.supportsSkillColumns
+      ? room.move_history
+      : state.localMoveHistoryByRoom[room.id] || [];
 
     state.room = {
       ...room,
       board: normalizeBoard(room.board),
-      skill_state: window.TacTicSkills?.normalizeSkillState(room.skill_state),
-      move_history: Array.isArray(room.move_history) ? room.move_history : [],
+      skill_state: window.TacTicSkills?.normalizeSkillState(storedSkillState),
+      move_history: Array.isArray(storedMoveHistory) ? storedMoveHistory : [],
     };
+    state.localSkillStateByRoom[room.id] = state.room.skill_state;
+    state.localMoveHistoryByRoom[room.id] = state.room.move_history;
     state.symbol = inferSymbol(state.room);
 
     const outcome = evaluateBoard(state.room.board);
@@ -346,6 +357,22 @@
     return window.TacTicSkills?.normalizeSkillState(room?.skill_state);
   }
 
+  function rememberLocalSkillState(roomId, skillState) {
+    if (!roomId) return;
+    state.localSkillStateByRoom[roomId] = window.TacTicSkills?.normalizeSkillState(skillState);
+    if (state.room?.id === roomId) {
+      state.room.skill_state = state.localSkillStateByRoom[roomId];
+    }
+  }
+
+  function rememberLocalMoveHistory(roomId, moveHistory) {
+    if (!roomId) return;
+    state.localMoveHistoryByRoom[roomId] = Array.isArray(moveHistory) ? moveHistory : [];
+    if (state.room?.id === roomId) {
+      state.room.move_history = state.localMoveHistoryByRoom[roomId];
+    }
+  }
+
   function getPlayerSkill(symbol = state.symbol, room = state.room) {
     const skillState = getSkillState(room);
     const key = window.TacTicSkills?.playerKey(symbol);
@@ -361,7 +388,7 @@
       elements.multiplayerInsightStatus.textContent = `${skills.insight}/2`;
     }
     if (elements.multiplayerInsightButton) {
-      elements.multiplayerInsightButton.disabled = !state.supportsSkillColumns || !canUse || skills.insight <= 0 || state.room?.current_turn !== state.symbol;
+      elements.multiplayerInsightButton.disabled = !canUse || skills.insight <= 0 || state.room?.current_turn !== state.symbol;
       elements.multiplayerInsightButton.classList.toggle("skill-spent", skills.insight <= 0);
       elements.multiplayerInsightButton.classList.toggle("active", state.insightHintIndex !== null);
     }
@@ -370,7 +397,7 @@
       elements.multiplayerUndoStatus.textContent = skills.undo > 0 ? "1/1" : "Used";
     }
     if (elements.multiplayerUndoButton) {
-      elements.multiplayerUndoButton.disabled = !state.supportsSkillColumns || !undoAvailable || skills.undo <= 0;
+      elements.multiplayerUndoButton.disabled = !undoAvailable || skills.undo <= 0;
       elements.multiplayerUndoButton.classList.toggle("skill-spent", skills.undo <= 0);
     }
 
@@ -378,9 +405,7 @@
       elements.multiplayerShieldStatus.textContent = skills.shield === "ready" ? "Ready" : "Spent";
     }
     if (elements.multiplayerShieldHint) {
-      elements.multiplayerShieldHint.textContent = !state.supportsSkillColumns
-        ? "Needs DB update."
-        : skills.shield === "ready" ? "Armed." : "Spent.";
+      elements.multiplayerShieldHint.textContent = skills.shield === "ready" ? "Armed." : "Spent.";
     }
     if (elements.multiplayerShieldCard) {
       elements.multiplayerShieldCard.classList.toggle("active", skills.shield === "ready");
@@ -593,6 +618,9 @@
     if (state.supportsSkillColumns) {
       update.skill_state = skillState;
       update.move_history = moveHistory.slice(-8);
+    } else {
+      rememberLocalSkillState(room.id, skillState);
+      rememberLocalMoveHistory(room.id, moveHistory.slice(-8));
     }
 
     if (outcome.winner && !shieldCanceledWin) {
@@ -691,17 +719,40 @@
   async function useInsight() {
     const client = initClient();
     const room = state.room;
-    if (!client || !state.supportsSkillColumns || !room || room.status !== "playing" || room.current_turn !== state.symbol) return;
+    if (!client || !room || room.status !== "playing") {
+      setStatus("Insight cannot be used before the match starts.");
+      return;
+    }
+    if (room.current_turn !== state.symbol) {
+      setStatus("Insight can only be used on your turn.");
+      return;
+    }
 
     const skillState = getSkillState(room);
     const key = window.TacTicSkills?.playerKey(state.symbol);
-    if (!skillState?.[key] || skillState[key].insight <= 0) return;
+    if (!skillState?.[key] || skillState[key].insight <= 0) {
+      setStatus("Insight Move is spent.");
+      return;
+    }
 
     window.TacTicAudio?.playClick();
     const bestMove = window.TacTicSkills?.findBestMove(room.board, state.symbol);
-    if (bestMove === null || bestMove === undefined) return;
+    if (bestMove === null || bestMove === undefined) {
+      setStatus("No legal insight remains.");
+      return;
+    }
 
     skillState[key].insight -= 1;
+    rememberLocalSkillState(room.id, skillState);
+
+    if (!state.supportsSkillColumns) {
+      state.insightHintIndex = bestMove;
+      setStatus("Insight Move revealed a recommended cell.");
+      renderSkillPanel();
+      renderBoard(room.board, evaluateBoard(room.board).winningPattern);
+      return;
+    }
+
     const { data, error } = await client
       .from("multiplayer_rooms")
       .update({
@@ -713,8 +764,15 @@
       .select()
       .single();
 
-    if (error || !data) return;
+    if (error || !data) {
+      skillState[key].insight += 1;
+      rememberLocalSkillState(room.id, skillState);
+      setStatus(formatSupabaseError(error));
+      renderSkillPanel();
+      return;
+    }
     state.insightHintIndex = bestMove;
+    setStatus("Insight Move revealed a recommended cell.");
     renderRoom(data);
   }
 
@@ -733,21 +791,45 @@
   async function useUndo() {
     const client = initClient();
     const room = state.room;
-    if (!client || !state.supportsSkillColumns || !canUndoCurrentPlayer(room)) return;
+    if (!client || !room) return;
+    if (!canUndoCurrentPlayer(room)) {
+      setStatus("Undo is only available before your opponent replies.");
+      return;
+    }
 
     const skillState = getSkillState(room);
     const key = window.TacTicSkills?.playerKey(state.symbol);
-    if (!skillState?.[key] || skillState[key].undo <= 0) return;
+    if (!skillState?.[key] || skillState[key].undo <= 0) {
+      setStatus("Undo Move is spent.");
+      return;
+    }
 
     window.TacTicAudio?.playClick();
     const moveHistory = [...room.move_history];
     const lastMove = moveHistory.pop();
     skillState[key].undo = 0;
+    const restoredBoard = window.TacTicSkills?.normalizeBoard(lastMove.board);
+    rememberLocalSkillState(room.id, skillState);
+    rememberLocalMoveHistory(room.id, moveHistory);
+
+    if (!state.supportsSkillColumns) {
+      state.room = {
+        ...room,
+        board: restoredBoard,
+        current_turn: state.symbol,
+        skill_state: skillState,
+        move_history: moveHistory,
+      };
+      state.insightHintIndex = null;
+      setStatus("Undo Move restored your latest note locally.");
+      renderRoom(state.room);
+      return;
+    }
 
     const { data, error } = await client
       .from("multiplayer_rooms")
       .update({
-        board: window.TacTicSkills?.normalizeBoard(lastMove.board),
+        board: restoredBoard,
         current_turn: state.symbol,
         skill_state: skillState,
         move_history: moveHistory,
@@ -760,8 +842,16 @@
       .select()
       .single();
 
-    if (error || !data) return;
+    if (error || !data) {
+      skillState[key].undo = 1;
+      rememberLocalSkillState(room.id, skillState);
+      rememberLocalMoveHistory(room.id, room.move_history);
+      setStatus(formatSupabaseError(error));
+      renderSkillPanel();
+      return;
+    }
     state.insightHintIndex = null;
+    setStatus("Undo Move restored your latest note.");
     renderRoom(data);
   }
 
