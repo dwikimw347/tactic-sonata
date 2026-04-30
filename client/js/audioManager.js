@@ -46,6 +46,12 @@
     state.bgMusic.pause();
   }
 
+  function stopMultiplayerMusic() {
+    if (!state.bgMusic) return;
+    state.bgMusic.pause();
+    state.bgMusic.currentTime = 0;
+  }
+
   function playClick() {
     ensureAudio();
     if (state.muted || state.clickSfx.dataset.available === "false") return;
@@ -62,7 +68,7 @@
   function setMuted(value) {
     state.muted = Boolean(value);
     if (state.muted) {
-      pauseMultiplayerMusic();
+      stopMultiplayerMusic();
     } else {
       playMultiplayerMusic();
     }
@@ -76,6 +82,7 @@
   window.TacTicAudio = {
     playMultiplayerMusic,
     pauseMultiplayerMusic,
+    stopMultiplayerMusic,
     playClick,
     playClickSfx: playClick,
     setMuted,

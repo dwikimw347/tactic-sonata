@@ -117,7 +117,6 @@ const PHROLOVA_DIALOGS = {
 
 let bgMusic = null;
 let currentPhrolovaVoice = null;
-let currentPhrolovaWelcome = null;
 const audio = {
   click: createAudio('assets/audio/click.wav', false, SFX_VOLUME),
   ai: createAudio('assets/audio/ai-move.wav', false, SFX_VOLUME),
@@ -965,42 +964,38 @@ function stopPhrolovaVoice() {
 
   currentPhrolovaVoice.pause();
   currentPhrolovaVoice.currentTime = 0;
+  currentPhrolovaVoice = null;
 }
 
-function stopPhrolovaWelcome() {
-  if (!currentPhrolovaWelcome) return;
+function playPhrolovaVoice(audioSrc, volume = VOICE_VOLUME) {
+  if (!audioSrc || state.muted) return;
 
-  currentPhrolovaWelcome.pause();
-  currentPhrolovaWelcome.currentTime = 0;
+  stopPhrolovaVoice();
+
+  try {
+    currentPhrolovaVoice = new Audio(audioSrc);
+    currentPhrolovaVoice.volume = volume;
+    currentPhrolovaVoice.addEventListener('error', () => undefined);
+    currentPhrolovaVoice.onended = () => {
+      currentPhrolovaVoice = null;
+    };
+    currentPhrolovaVoice.play().catch(() => undefined);
+  } catch (error) {
+    console.warn('Phrolova voice failed:', error);
+  }
 }
 
 function playPhrolovaWelcome() {
-  if (state.muted) return;
-
-  try {
-    stopPhrolovaWelcome();
-    currentPhrolovaWelcome = new Audio('assets/audio/phrolova_welcome.mp3');
-    currentPhrolovaWelcome.volume = VOICE_VOLUME;
-    currentPhrolovaWelcome.addEventListener('error', () => undefined);
-    currentPhrolovaWelcome.play().catch(() => undefined);
-  } catch (error) {
-    // Welcome audio failures should never interrupt the game.
-  }
+  playPhrolovaVoice('assets/audio/phrolova_welcome.mp3', VOICE_VOLUME);
 }
 
-function playPhrolovaVoice(audioSrc) {
-  if (!audioSrc || state.muted) return;
-
-  try {
-    stopPhrolovaVoice();
-    currentPhrolovaVoice = new Audio(audioSrc);
-    currentPhrolovaVoice.volume = VOICE_VOLUME;
-    currentPhrolovaVoice.addEventListener('error', () => undefined);
-    currentPhrolovaVoice.play().catch(() => undefined);
-  } catch (error) {
-    // Audio failures should never interrupt play, especially on static hosts.
-  }
+function stopModeAudio() {
+  stopBackgroundMusic();
+  stopPhrolovaVoice();
+  state.audioReady = false;
 }
+
+window.TacTicStopModeAudio = stopModeAudio;
 
 function initPhrolovaVideo() {
   const phrolovaVideo = document.querySelector('.phrolova-video');
@@ -1311,6 +1306,7 @@ function showMatchModal(result) {
 }
 
 async function startMatch({ preserveMatch = false } = {}) {
+  stopPhrolovaVoice();
   startBgmOnce();
   setPhrolovaAvatar('play');
   state.insightHintIndex = null;
@@ -1455,6 +1451,7 @@ async function useHarmonyShieldSkill() {
 }
 
 async function resetGame() {
+  stopPhrolovaVoice();
   setPhrolovaAvatar('play');
   state.insightHintIndex = null;
   state.shieldHintIndex = null;
@@ -1573,7 +1570,6 @@ function bindEvents() {
     if (state.muted) {
       stopBackgroundMusic();
       stopPhrolovaVoice();
-      stopPhrolovaWelcome();
     } else {
       state.audioReady = true;
       playBackgroundMusic();
@@ -1582,7 +1578,7 @@ function bindEvents() {
 
   elements.backToModeFromPhrolova?.addEventListener('click', () => {
     playClickSfx();
-    stopPhrolovaWelcome();
+    stopModeAudio();
     showScreen('modeSelectScreen');
     if (elements.multiplayerMessage) elements.multiplayerMessage.textContent = '';
   });

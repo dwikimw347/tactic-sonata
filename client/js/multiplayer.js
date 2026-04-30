@@ -170,6 +170,8 @@
 
   function backToModeSelect() {
     cleanupRealtime();
+    window.TacTicAudio?.stopMultiplayerMusic?.();
+    window.TacTicStopModeAudio?.();
     state.room = null;
     state.symbol = null;
     state.insightHintIndex = null;
@@ -619,6 +621,8 @@
     }
 
     cleanupRealtime();
+    window.TacTicAudio?.stopMultiplayerMusic?.();
+    window.TacTicStopModeAudio?.();
     state.room = null;
     state.symbol = null;
     state.insightHintIndex = null;
