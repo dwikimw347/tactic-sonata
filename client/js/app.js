@@ -1,6 +1,6 @@
 ﻿const API_BASE = '/api/game';
 
-const BACKEND_UNAVAILABLE_MESSAGE = 'Backend API is not available. Please run the server locally or deploy backend separately.';
+const BACKEND_UNAVAILABLE_MESSAGE = 'Welcome, wanderer, to this humble grid. I am Phrolova, the silent conductor of souls... come, let us begin our solemn symphony of life and death.';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const IS_LOCAL_HOST = LOCAL_HOSTS.has(window.location.hostname);
 const API_BASE_URL = window.TACTIC_SONATA_API_BASE_URL || (IS_LOCAL_HOST ? 'http://localhost:3000' : '');
@@ -117,6 +117,7 @@ const PHROLOVA_DIALOGS = {
 
 let bgMusic = null;
 let currentPhrolovaVoice = null;
+let currentPhrolovaWelcome = null;
 const audio = {
   click: createAudio('assets/audio/click.wav', false, SFX_VOLUME),
   ai: createAudio('assets/audio/ai-move.wav', false, SFX_VOLUME),
@@ -954,6 +955,27 @@ function stopPhrolovaVoice() {
   currentPhrolovaVoice.currentTime = 0;
 }
 
+function stopPhrolovaWelcome() {
+  if (!currentPhrolovaWelcome) return;
+
+  currentPhrolovaWelcome.pause();
+  currentPhrolovaWelcome.currentTime = 0;
+}
+
+function playPhrolovaWelcome() {
+  if (state.muted) return;
+
+  try {
+    stopPhrolovaWelcome();
+    currentPhrolovaWelcome = new Audio('assets/audio/phrolova_welcome.mp3');
+    currentPhrolovaWelcome.volume = VOICE_VOLUME;
+    currentPhrolovaWelcome.addEventListener('error', () => undefined);
+    currentPhrolovaWelcome.play().catch(() => undefined);
+  } catch (error) {
+    // Welcome audio failures should never interrupt the game.
+  }
+}
+
 function playPhrolovaVoice(audioSrc) {
   if (!audioSrc || state.muted) return;
 
@@ -1462,6 +1484,8 @@ function bindIntroFlow() {
     if (elements.gameScreen) elements.gameScreen.hidden = false;
     const multiplayerScreen = document.getElementById('multiplayerScreen');
     if (multiplayerScreen) multiplayerScreen.hidden = true;
+    setDialog(BACKEND_UNAVAILABLE_MESSAGE);
+    playPhrolovaWelcome();
   });
 
   elements.multiplayerBtn?.addEventListener('click', () => {
@@ -1513,6 +1537,7 @@ function bindEvents() {
     if (state.muted) {
       stopBackgroundMusic();
       stopPhrolovaVoice();
+      stopPhrolovaWelcome();
     } else {
       state.audioReady = true;
       playBackgroundMusic();
