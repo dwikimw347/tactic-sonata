@@ -9,12 +9,20 @@ create table if not exists public.multiplayer_rooms (
   player_o_id text,
   current_turn text check (current_turn in ('X', 'O')),
   board jsonb not null default '[null, null, null, null, null, null, null, null, null]'::jsonb,
+  skill_state jsonb not null default '{"player_x":{"insight":2,"undo":1,"shield":"ready"},"player_o":{"insight":2,"undo":1,"shield":"ready"}}'::jsonb,
+  move_history jsonb not null default '[]'::jsonb,
   winner text,
   result_type text check (result_type in ('win', 'draw', 'afk')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   last_move_at timestamptz not null default now()
 );
+
+alter table public.multiplayer_rooms
+  add column if not exists skill_state jsonb not null default '{"player_x":{"insight":2,"undo":1,"shield":"ready"},"player_o":{"insight":2,"undo":1,"shield":"ready"}}'::jsonb;
+
+alter table public.multiplayer_rooms
+  add column if not exists move_history jsonb not null default '[]'::jsonb;
 
 create table if not exists public.multiplayer_messages (
   id uuid primary key default gen_random_uuid(),

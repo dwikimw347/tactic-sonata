@@ -281,6 +281,52 @@
           </div>
 
           <div id="multiplayerBoard" class="board multiplayer-board" aria-label="Multiplayer board"></div>
+
+          <section class="skill-panel multiplayer-skill-panel" aria-label="Multiplayer player skill panel">
+            <div class="skill-panel-header">
+              <div>
+                <span class="setup-label">Player Skills</span>
+              </div>
+            </div>
+
+            <div class="skill-grid">
+              <button
+                id="multiplayerInsightButton"
+                class="skill-button"
+                type="button"
+                title="Highlight the best recommended move. Max 2 uses per match."
+                aria-label="Insight Move. Reveal one recommended move."
+              >
+                <span class="skill-name">Insight Move</span>
+                <small class="skill-description">Reveal one recommended move.</small>
+                <span id="multiplayerInsightStatus" class="skill-status">2/2</span>
+              </button>
+
+              <button
+                id="multiplayerUndoButton"
+                class="skill-button"
+                type="button"
+                title="Undo your last move before your opponent replies. Max 1 use per match."
+                aria-label="Undo Move. Rewind your latest move."
+              >
+                <span class="skill-name">Undo Move</span>
+                <small class="skill-description">Rewind your latest move.</small>
+                <span id="multiplayerUndoStatus" class="skill-status">1/1</span>
+              </button>
+
+              <div
+                id="multiplayerShieldCard"
+                class="skill-button shield-card"
+                title="Cancels one opponent winning move."
+                aria-label="Harmony Shield. Cancels one fatal move."
+              >
+                <span class="skill-name">Harmony Shield</span>
+                <small class="skill-description">Cancels one fatal move.</small>
+                <span id="multiplayerShieldStatus" class="skill-status">Ready</span>
+                <span id="multiplayerShieldHint" class="shield-hint-text">Waiting.</span>
+              </div>
+            </div>
+          </section>
         </section>
 
         <aside class="side-panels multiplayer-side-panels">
@@ -294,6 +340,7 @@
               <h3>Current Turn</h3>
               <p id="multiplayerTurnInfo" class="multiplayer-info-line">Awaiting match.</p>
               <p id="multiplayerAfkInfo" class="multiplayer-info-line">AFK limit: 20 seconds.</p>
+              <button id="multiplayerSoundButton" class="ghost-button multiplayer-sound-button" type="button" aria-pressed="false">Sound On</button>
             </div>
             <div class="score-section">
               <h3>Latest Matches</h3>
@@ -316,6 +363,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabaseConfig.js"></script>
+  <script src="js/audioManager.js"></script>
+  <script src="js/skillManager.js"></script>
   <script src="js/multiplayer.js"></script>
   <script src="js/app.js"></script>
 </body>

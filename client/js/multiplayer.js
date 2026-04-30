@@ -22,6 +22,7 @@
     messageChannel: null,
     afkTimer: null,
     historyLoadedFor: "",
+    insightHintIndex: null,
   };
 
   const elements = {};
@@ -55,7 +56,15 @@
       "multiplayerRoomInfo",
       "multiplayerTurnInfo",
       "multiplayerAfkInfo",
+      "multiplayerSoundButton",
       "multiplayerHistoryList",
+      "multiplayerInsightButton",
+      "multiplayerInsightStatus",
+      "multiplayerUndoButton",
+      "multiplayerUndoStatus",
+      "multiplayerShieldCard",
+      "multiplayerShieldStatus",
+      "multiplayerShieldHint",
     ].forEach((id) => {
       elements[id] = getElement(id);
     });
@@ -87,6 +96,7 @@
     if (elements.multiplayerGamePanel) elements.multiplayerGamePanel.hidden = true;
     setError("");
     setStatus("Enter a username to begin.");
+    state.insightHintIndex = null;
     renderBoard(EMPTY_BOARD);
     initClient();
   }
@@ -219,8 +229,12 @@
       button.setAttribute("aria-label", `Cell ${index + 1}${cell ? ` marked ${cell}` : ""}`);
       if (cell) button.classList.add("marked");
       if (winningPattern.includes(index)) button.classList.add("win");
+      if (state.insightHintIndex === index && !cell) button.classList.add("insight-hint");
       button.disabled = !canMove || Boolean(cell);
-      button.addEventListener("click", () => makeMove(index));
+      button.addEventListener("click", () => {
+        window.TacTicAudio?.playClick();
+        makeMove(index);
+      });
       elements.multiplayerBoard.appendChild(button);
     });
   }
@@ -231,6 +245,8 @@
     state.room = {
       ...room,
       board: normalizeBoard(room.board),
+      skill_state: window.TacTicSkills?.normalizeSkillState(room.skill_state),
+      move_history: Array.isArray(room.move_history) ? room.move_history : [],
     };
     state.symbol = inferSymbol(state.room);
 
@@ -259,7 +275,52 @@
     }
 
     renderBoard(state.room.board, outcome.winningPattern);
+    renderSkillPanel();
     scheduleAfkCheck(state.room);
+  }
+
+  function getSkillState(room = state.room) {
+    return window.TacTicSkills?.normalizeSkillState(room?.skill_state);
+  }
+
+  function getPlayerSkill(symbol = state.symbol, room = state.room) {
+    const skillState = getSkillState(room);
+    const key = window.TacTicSkills?.playerKey(symbol);
+    return skillState?.[key] || { insight: 0, undo: 0, shield: "spent" };
+  }
+
+  function renderSkillPanel() {
+    const skills = getPlayerSkill();
+    const canUse = state.room?.status === "playing";
+    const undoAvailable = canUse && canUndoCurrentPlayer();
+
+    if (elements.multiplayerInsightStatus) {
+      elements.multiplayerInsightStatus.textContent = `${skills.insight}/2`;
+    }
+    if (elements.multiplayerInsightButton) {
+      elements.multiplayerInsightButton.disabled = !canUse || skills.insight <= 0 || state.room?.current_turn !== state.symbol;
+      elements.multiplayerInsightButton.classList.toggle("skill-spent", skills.insight <= 0);
+      elements.multiplayerInsightButton.classList.toggle("active", state.insightHintIndex !== null);
+    }
+
+    if (elements.multiplayerUndoStatus) {
+      elements.multiplayerUndoStatus.textContent = skills.undo > 0 ? "1/1" : "Used";
+    }
+    if (elements.multiplayerUndoButton) {
+      elements.multiplayerUndoButton.disabled = !undoAvailable || skills.undo <= 0;
+      elements.multiplayerUndoButton.classList.toggle("skill-spent", skills.undo <= 0);
+    }
+
+    if (elements.multiplayerShieldStatus) {
+      elements.multiplayerShieldStatus.textContent = skills.shield === "ready" ? "Ready" : "Spent";
+    }
+    if (elements.multiplayerShieldHint) {
+      elements.multiplayerShieldHint.textContent = skills.shield === "ready" ? "Armed." : "Spent.";
+    }
+    if (elements.multiplayerShieldCard) {
+      elements.multiplayerShieldCard.classList.toggle("active", skills.shield === "ready");
+      elements.multiplayerShieldCard.classList.toggle("skill-spent", skills.shield !== "ready");
+    }
   }
 
   function renderFinishedStatus(room) {
@@ -288,6 +349,7 @@
     const client = initClient();
     if (!client) return;
 
+    window.TacTicAudio?.playClick();
     const username = validateUsername();
     if (!username) return;
 
@@ -329,6 +391,8 @@
         player_x: state.username,
         player_x_id: state.playerId,
         board: [...EMPTY_BOARD],
+        skill_state: window.TacTicSkills?.createDefaultSkillState?.(),
+        move_history: [],
         current_turn: randomTurn(),
         last_move_at: nowIso(),
       })
@@ -347,6 +411,8 @@
         status: "playing",
         player_o: state.username,
         player_o_id: state.playerId,
+        skill_state: room.skill_state || window.TacTicSkills?.createDefaultSkillState?.(),
+        move_history: Array.isArray(room.move_history) ? room.move_history : [],
         current_turn: randomTurn(),
         updated_at: nowIso(),
         last_move_at: nowIso(),
@@ -365,6 +431,8 @@
     if (elements.multiplayerSetupPanel) elements.multiplayerSetupPanel.hidden = true;
     if (elements.multiplayerGamePanel) elements.multiplayerGamePanel.hidden = false;
     setStatus(message);
+    state.insightHintIndex = null;
+    window.TacTicAudio?.playMultiplayerMusic();
     renderRoom(room);
     subscribeToRoom(room.id);
     subscribeToMessages(room.id);
@@ -427,21 +495,45 @@
     if (room.status !== "playing" || room.current_turn !== state.symbol || room.board[index]) return;
 
     const board = normalizeBoard(room.board);
+    const previousBoard = [...board];
     board[index] = state.symbol;
     const outcome = evaluateBoard(board);
     const nextTurn = otherSymbol(state.symbol);
+    const skillState = getSkillState(room);
+    const defenderSymbol = otherSymbol(state.symbol);
+    const defenderKey = window.TacTicSkills?.playerKey(defenderSymbol);
+    const moveHistory = Array.isArray(room.move_history) ? [...room.move_history] : [];
+    let shieldCanceledWin = false;
+
+    if (outcome.winner === state.symbol && skillState?.[defenderKey]?.shield === "ready") {
+      board[index] = null;
+      skillState[defenderKey].shield = "spent";
+      shieldCanceledWin = true;
+      setStatus("Harmony Shield cancelled the fatal move.");
+    } else {
+      moveHistory.push({
+        by: state.symbol,
+        index,
+        board: previousBoard,
+        current_turn: room.current_turn,
+        created_at: nowIso(),
+      });
+    }
+
     const update = {
       board,
-      current_turn: outcome.winner || outcome.isDraw ? room.current_turn : nextTurn,
+      current_turn: shieldCanceledWin ? nextTurn : outcome.winner || outcome.isDraw ? room.current_turn : nextTurn,
+      skill_state: skillState,
+      move_history: moveHistory.slice(-8),
       updated_at: nowIso(),
       last_move_at: nowIso(),
     };
 
-    if (outcome.winner) {
+    if (outcome.winner && !shieldCanceledWin) {
       update.status = "finished";
       update.winner = playerNameBySymbol(room, outcome.winner);
       update.result_type = "win";
-    } else if (outcome.isDraw) {
+    } else if (outcome.isDraw && !shieldCanceledWin) {
       update.status = "finished";
       update.winner = null;
       update.result_type = "draw";
@@ -457,6 +549,7 @@
       .single();
 
     if (error || !data) return;
+    state.insightHintIndex = null;
     renderRoom(data);
 
     if (update.status === "finished") {
@@ -524,6 +617,91 @@
         started_at: room.created_at,
         ended_at: nowIso(),
       });
+  }
+
+  async function useInsight() {
+    const client = initClient();
+    const room = state.room;
+    if (!client || !room || room.status !== "playing" || room.current_turn !== state.symbol) return;
+
+    const skillState = getSkillState(room);
+    const key = window.TacTicSkills?.playerKey(state.symbol);
+    if (!skillState?.[key] || skillState[key].insight <= 0) return;
+
+    window.TacTicAudio?.playClick();
+    const bestMove = window.TacTicSkills?.findBestMove(room.board, state.symbol);
+    if (bestMove === null || bestMove === undefined) return;
+
+    skillState[key].insight -= 1;
+    const { data, error } = await client
+      .from("multiplayer_rooms")
+      .update({
+        skill_state: skillState,
+        updated_at: nowIso(),
+      })
+      .eq("id", room.id)
+      .eq("status", "playing")
+      .select()
+      .single();
+
+    if (error || !data) return;
+    state.insightHintIndex = bestMove;
+    renderRoom(data);
+  }
+
+  function canUndoCurrentPlayer(room = state.room) {
+    if (!room || room.status !== "playing" || !state.symbol) return false;
+    const history = Array.isArray(room.move_history) ? room.move_history : [];
+    const lastMove = history[history.length - 1];
+    return Boolean(
+      lastMove
+        && lastMove.by === state.symbol
+        && room.current_turn === otherSymbol(state.symbol)
+        && room.board?.[lastMove.index] === state.symbol,
+    );
+  }
+
+  async function useUndo() {
+    const client = initClient();
+    const room = state.room;
+    if (!client || !canUndoCurrentPlayer(room)) return;
+
+    const skillState = getSkillState(room);
+    const key = window.TacTicSkills?.playerKey(state.symbol);
+    if (!skillState?.[key] || skillState[key].undo <= 0) return;
+
+    window.TacTicAudio?.playClick();
+    const moveHistory = [...room.move_history];
+    const lastMove = moveHistory.pop();
+    skillState[key].undo = 0;
+
+    const { data, error } = await client
+      .from("multiplayer_rooms")
+      .update({
+        board: window.TacTicSkills?.normalizeBoard(lastMove.board),
+        current_turn: state.symbol,
+        skill_state: skillState,
+        move_history: moveHistory,
+        updated_at: nowIso(),
+        last_move_at: nowIso(),
+      })
+      .eq("id", room.id)
+      .eq("status", "playing")
+      .eq("current_turn", otherSymbol(state.symbol))
+      .select()
+      .single();
+
+    if (error || !data) return;
+    state.insightHintIndex = null;
+    renderRoom(data);
+  }
+
+  function toggleSound() {
+    const muted = window.TacTicAudio?.toggleMuted?.();
+    if (elements.multiplayerSoundButton) {
+      elements.multiplayerSoundButton.textContent = muted ? "Sound Off" : "Sound On";
+      elements.multiplayerSoundButton.setAttribute("aria-pressed", String(Boolean(muted)));
+    }
   }
 
   async function loadHistory() {
@@ -597,8 +775,14 @@
   function bindEvents() {
     cacheElements();
     elements.findMatchButton?.addEventListener("click", findMatch);
-    elements.backToModeButton?.addEventListener("click", backToModeSelect);
+    elements.backToModeButton?.addEventListener("click", () => {
+      window.TacTicAudio?.playClick();
+      backToModeSelect();
+    });
     elements.multiplayerChatForm?.addEventListener("submit", sendMessage);
+    elements.multiplayerInsightButton?.addEventListener("click", useInsight);
+    elements.multiplayerUndoButton?.addEventListener("click", useUndo);
+    elements.multiplayerSoundButton?.addEventListener("click", toggleSound);
   }
 
   document.addEventListener("DOMContentLoaded", bindEvents);

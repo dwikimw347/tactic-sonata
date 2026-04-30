@@ -909,6 +909,15 @@ input::placeholder {
   cursor: not-allowed;
 }
 
+.skill-button.skill-spent {
+  opacity: 0.5;
+}
+
+.skill-button.active {
+  border-color: var(--skill-blue);
+  box-shadow: 0 0 24px rgba(128, 216, 255, 0.28), inset 0 0 18px rgba(128, 216, 255, 0.12);
+}
+
 .skill-name {
   color: white;
   font-size: 1.02rem;
@@ -1284,6 +1293,17 @@ input::placeholder {
 
 .multiplayer-board.is-locked .cell:not(.marked) {
   opacity: 0.62;
+}
+
+.multiplayer-skill-panel {
+  margin-top: 12px;
+}
+
+.multiplayer-sound-button {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 10px;
+  font-size: 0.82rem;
 }
 
 .multiplayer-history-list {

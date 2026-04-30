@@ -19,6 +19,7 @@ Aplikasi web Tic Tac Toe frontend + backend dengan lawan AI bernama **Phrolova**
 - Maestro of the Lost Beyond: boss mode sengaja tidak adil dengan ability Resonance Override, Hecate's Shadow, dan Symphony of Rebirth.
 - Restart/reset game.
 - Random matchmaking, chat, AFK win rule, dan match history untuk mode Multiplayer.
+- Multiplayer juga memiliki background music, click SFX, dan Player Skills yang tersinkron melalui Supabase.
 - Dialog Phrolova dengan gaya formal, puitis, dan metafora musik.
 - UI gothic merah-hitam, responsive, hover effect, animasi klik, dan highlight kemenangan.
 - Audio manager dengan placeholder dan fallback aman jika file audio belum tersedia.
@@ -121,6 +122,17 @@ Tabel multiplayer:
 - `multiplayer_rooms`: state room, board, player, turn, result, dan timestamp AFK.
 - `multiplayer_messages`: chat realtime per room.
 - `multiplayer_history`: hasil match terakhir untuk history user.
+
+Kolom penting di `multiplayer_rooms`:
+
+- `skill_state`: sisa Insight/Undo dan status Harmony Shield untuk X dan O.
+- `move_history`: snapshot board terakhir untuk Undo Move.
+
+Player Skills di Multiplayer:
+
+- **Insight Move**: mengurangi jatah di `skill_state`, lalu menyorot rekomendasi cell secara visual.
+- **Undo Move**: rollback move terakhir player sendiri selama lawan belum membalas.
+- **Harmony Shield**: otomatis membatalkan satu winning move lawan dan mengubah status shield menjadi `spent`.
 
 ## API Endpoint
 
