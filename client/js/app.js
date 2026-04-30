@@ -115,6 +115,21 @@ const PHROLOVA_DIALOGS = {
   ]
 };
 
+const MAESTRO_ABILITY_DIALOGS = {
+  resonanceOverride: {
+    text: 'With a wave of my baton, I attune the frequencies of this grid.',
+    audio: 'assets/audio/phrolova_resonance_override.mp3',
+  },
+  hecatesShadow: {
+    text: 'Hecate standeth at the crossroads of fate...',
+    audio: 'assets/audio/phrolova_hecate_shadow.mp3',
+  },
+  symphonyOfRebirth: {
+    text: 'Death is but prelude... let the melody be reborn.',
+    audio: 'assets/audio/phrolova_symphony_of_rebirth.mp3',
+  },
+};
+
 let bgMusic = null;
 let currentPhrolovaVoice = null;
 const audio = {
@@ -1208,6 +1223,36 @@ function updatePhrolovaDialog(type) {
   el.classList.add('dialog-changing');
   playPhrolovaVoice(selectedDialog.audio);
 }
+
+function normalizeMaestroAbilityName(name) {
+  if (!name) return null;
+
+  const key = String(name).toLowerCase();
+  if (key.includes('resonance')) return 'resonanceOverride';
+  if (key.includes('hecate')) return 'hecatesShadow';
+  if (key.includes('symphony')) return 'symphonyOfRebirth';
+  return null;
+}
+
+function updateMaestroAbilityDialog(abilityName) {
+  const normalized = normalizeMaestroAbilityName(abilityName);
+  if (!normalized) return false;
+
+  const abilityDialog = MAESTRO_ABILITY_DIALOGS[normalized];
+  if (!abilityDialog) return false;
+
+  const dialogEl = document.querySelector('.dialog-text');
+  if (dialogEl) {
+    dialogEl.classList.remove('dialog-changing');
+    void dialogEl.offsetWidth;
+    dialogEl.textContent = abilityDialog.text;
+    dialogEl.classList.add('dialog-changing');
+  }
+
+  playPhrolovaVoice(abilityDialog.audio, VOICE_VOLUME);
+  return true;
+}
+
 function setPhrolovaSkillDisplay(phrolovaSkill) {
   if (!elements.phrolovaSkillName) return;
 
@@ -1429,10 +1474,12 @@ function renderGame(game, options = {}) {
     state.maestroEffectTimer = window.setTimeout(() => {
       elements.board.classList.remove(activeMaestroAbility.effect);
     }, 950);
-    setDialog(activeMaestroAbility.dialogue);
   }
+  const maestroDialogHandled = activeMaestroAbility
+    ? updateMaestroAbilityDialog(activeMaestroAbility.name)
+    : false;
 
-  if (options.systemMessage && (!game || game.status !== 'finished')) {
+  if (options.systemMessage && !maestroDialogHandled && (!game || game.status !== 'finished')) {
     setDialog(options.systemMessage);
     return;
   }
@@ -1444,7 +1491,7 @@ function renderGame(game, options = {}) {
 
   if (game.status === 'playing') {
     setPhrolovaAvatar('play');
-    if (options.phrolovaMoved && !activeMaestroAbility) {
+    if (options.phrolovaMoved && !maestroDialogHandled) {
       updatePhrolovaDialog('playing');
     }
     return;
@@ -1452,15 +1499,15 @@ function renderGame(game, options = {}) {
 
   if (game.winner === 'player') {
     setPhrolovaAvatar('lose');
-    updatePhrolovaDialog('lose');
+    if (!maestroDialogHandled) updatePhrolovaDialog('lose');
     safePlay('win');
   } else if (game.winner === 'ai') {
     setPhrolovaAvatar('win');
-    updatePhrolovaDialog('win');
+    if (!maestroDialogHandled) updatePhrolovaDialog('win');
     safePlay('lose');
   } else if (game.winner === 'draw') {
     setPhrolovaAvatar('draw');
-    updatePhrolovaDialog('draw');
+    if (!maestroDialogHandled) updatePhrolovaDialog('draw');
     safePlay('draw');
   }
 
