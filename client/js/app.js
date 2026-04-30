@@ -340,6 +340,49 @@ function findLineGap(board, symbol) {
   return null;
 }
 
+function countOpenThreats(board, symbol) {
+  return WIN_PATTERNS.reduce((count, pattern) => {
+    const symbolCells = pattern.filter((index) => board[index] === symbol);
+    const emptyCells = pattern.filter((index) => !board[index]);
+    return count + (symbolCells.length === 2 && emptyCells.length === 1 ? 1 : 0);
+  }, 0);
+}
+
+function ensureLocalMaestroState(game) {
+  if (!game.abilityUsage) game.abilityUsage = { resonanceOverrideUsed: false, symphonyOfRebirthUsed: false };
+  if (!game.temporaryEffects) game.temporaryEffects = { hecateShadow: null };
+  if (!Array.isArray(game.boardHistory)) game.boardHistory = [];
+  if (!game.maestro) game.maestro = {};
+  game.maestro.resonanceUsed = Boolean(game.maestro.resonanceUsed || game.abilityUsage.resonanceOverrideUsed);
+  game.maestro.symphonyUsed = Boolean(game.maestro.symphonyUsed || game.abilityUsage.symphonyOfRebirthUsed);
+  game.maestro.shadowCount = Number.isInteger(game.maestro.shadowCount) ? game.maestro.shadowCount : 0;
+  return game;
+}
+
+function findLocalHecateTarget(game) {
+  const profiles = WIN_PATTERNS.map((pattern) => {
+    const playerCells = pattern.filter((index) => game.board[index] === game.playerSymbol);
+    const emptyCells = pattern.filter((index) => !game.board[index]);
+    const blocked = pattern.some((index) => game.board[index] && game.board[index] !== game.playerSymbol);
+    return { pattern, playerCells, emptyCells, blocked };
+  });
+  const direct = profiles.find((profile) => profile.playerCells.length === 2 && profile.emptyCells.length === 1);
+  if (direct) return { ...direct, emptyCell: direct.emptyCells[0], reason: 'direct-threat' };
+
+  for (const index of getAvailableMoves(game.board)) {
+    const nextBoard = [...game.board];
+    nextBoard[index] = game.playerSymbol;
+    const fork = countOpenThreats(nextBoard, game.playerSymbol) >= 2;
+    if (fork) {
+      const line = profiles.find((profile) => !profile.blocked && profile.playerCells.length >= 1 && profile.pattern.includes(index));
+      if (line) return { ...line, emptyCell: index, reason: 'fork-potential' };
+    }
+  }
+
+  const developing = profiles.find((profile) => !profile.blocked && profile.playerCells.length === 1 && profile.emptyCells.length === 2);
+  return developing ? { ...developing, emptyCell: developing.emptyCells[0], reason: 'developing-line' } : null;
+}
+
 function getRandomMove(board) {
   const moves = getAvailableMoves(board);
   if (moves.length === 0) return null;
@@ -519,6 +562,7 @@ function applyLocalOutcome(game) {
 }
 
 function findResonanceTarget(game) {
+  ensureLocalMaestroState(game);
   if (game.difficulty !== 'maestro' || game.abilityUsage.resonanceOverrideUsed) return null;
   const playerCells = game.board
     .map((cell, index) => (cell === game.playerSymbol ? index : null))
@@ -535,6 +579,15 @@ function findResonanceTarget(game) {
     return playerCells.find((index) => WIN_PATTERNS.some((pattern) => pattern.includes(index) && pattern.includes(threat))) ?? null;
   }
 
+  for (const index of playerCells) {
+    const nextBoard = [...game.board];
+    nextBoard[index] = game.aiSymbol;
+    if (countOpenThreats(nextBoard, game.aiSymbol) >= 2) return index;
+  }
+
+  const preferred = [4, 0, 2, 6, 8, 1, 3, 5, 7].find((index) => game.board[index] === game.playerSymbol);
+  if (preferred !== undefined) return preferred;
+
   return null;
 }
 
@@ -544,6 +597,7 @@ function applyLocalResonance(game) {
   game.boardHistory.push([...game.board]);
   game.board[target] = game.aiSymbol;
   game.abilityUsage.resonanceOverrideUsed = true;
+  ensureLocalMaestroState(game).maestro.resonanceUsed = true;
   game.history.push({
     by: 'ai',
     symbol: game.aiSymbol,
@@ -554,11 +608,103 @@ function applyLocalResonance(game) {
   });
   return {
     name: 'Resonance Override',
-    dialogue: 'Thy mark now singeth in mine own frequency.',
+    dialogue: 'With a silent wave of my baton, I attune the frequencies of this grid.',
     effect: 'resonance-override',
     affectedCells: [target],
     move: target,
   };
+}
+
+function applyLocalHecate(game) {
+  ensureLocalMaestroState(game);
+  if (game.difficulty !== 'maestro' || game.maestro.shadowCount >= 3 || game.temporaryEffects.hecateShadow) return null;
+  const target = findLocalHecateTarget(game);
+  if (!target?.playerCells?.length) return null;
+  if (game.maestro.shadowCount > 0
+    && (!game.abilityUsage.resonanceOverrideUsed || !game.abilityUsage.symphonyOfRebirthUsed)) {
+    return null;
+  }
+  if (game.maestro.shadowCount > 0 && !['direct-threat', 'fork-potential'].includes(target.reason)) return null;
+  const shadowCell = target.playerCells[0];
+  game.boardHistory.push([...game.board]);
+  game.board[shadowCell] = null;
+  game.temporaryEffects.hecateShadow = {
+    index: shadowCell,
+    symbol: game.playerSymbol,
+    reason: target.reason,
+  };
+  game.maestro.shadowCount += 1;
+  return {
+    name: 'Hecate’s Shadow',
+    dialogue: 'Hecate standeth at the crossroads of fate...',
+    effect: 'hecate-shadow',
+    affectedCells: [shadowCell, target.emptyCell],
+    move: null,
+  };
+}
+
+function restoreLocalHecate(game) {
+  const shadow = game.temporaryEffects?.hecateShadow;
+  if (!shadow) return null;
+  if (!game.board[shadow.index]) game.board[shadow.index] = shadow.symbol;
+  game.temporaryEffects.hecateShadow = null;
+  return shadow;
+}
+
+function canUseLocalSymphony(game, outcome = evaluateBoard(game.board)) {
+  ensureLocalMaestroState(game);
+  if (game.difficulty !== 'maestro' || game.abilityUsage.symphonyOfRebirthUsed) return false;
+  if (game.boardHistory.length < 1) return false;
+  if (outcome.winner === game.playerSymbol || outcome.isDraw) return true;
+  if (findLineGap(game.board, game.playerSymbol) !== null) return true;
+  const moveCount = game.board.filter(Boolean).length;
+  const aiWin = findLineGap(game.board, game.aiSymbol);
+  const playerBlock = findLineGap(game.board, game.playerSymbol);
+  return (game.maestro.shadowCount > 0 && game.abilityUsage.resonanceOverrideUsed && moveCount >= 4)
+    || (aiWin === null && playerBlock === null && getAvailableMoves(game.board).length <= 4);
+}
+
+function applyLocalSymphony(game) {
+  ensureLocalMaestroState(game);
+  const rollbackIndex = Math.max(0, game.boardHistory.length - 3);
+  const rollbackBoard = game.boardHistory[rollbackIndex];
+  if (!rollbackBoard) return null;
+  game.board = [...rollbackBoard];
+  game.boardHistory = game.boardHistory.slice(0, rollbackIndex + 1);
+  game.status = 'playing';
+  game.winner = null;
+  game.winningPattern = [];
+  game.temporaryEffects.hecateShadow = null;
+  game.abilityUsage.symphonyOfRebirthUsed = true;
+  game.maestro.symphonyUsed = true;
+  game.match.abilityUsage = { ...(game.match.abilityUsage || {}), symphonyOfRebirthUsed: true };
+  let bonusMove = 4;
+  if (game.board[bonusMove]) bonusMove = findBestMove(game.board, game.aiSymbol, game.playerSymbol);
+  if (bonusMove !== null && !game.board[bonusMove]) {
+    game.board[bonusMove] = game.aiSymbol;
+    game.history.push({ by: 'ai', symbol: game.aiSymbol, index: bonusMove, skill: 'Symphony of Rebirth', effect: 'symphony-rebirth' });
+  }
+  game.currentTurn = game.playerSymbol;
+  return {
+    name: 'Symphony of Rebirth',
+    dialogue: 'Death is but prelude... let the melody be reborn.',
+    effect: 'symphony-rebirth',
+    affectedCells: bonusMove !== null ? [bonusMove] : [],
+    move: bonusMove,
+  };
+}
+
+function chooseLocalMaestroBaitMove(game) {
+  const moves = getAvailableMoves(game.board);
+  if (!moves.length) return null;
+  const winningMove = findLineGap(game.board, game.aiSymbol);
+  if (winningMove !== null && game.maestro.shadowCount > 0 && game.abilityUsage.resonanceOverrideUsed) return winningMove;
+  const blockingMove = findLineGap(game.board, game.playerSymbol);
+  if (blockingMove !== null && game.maestro.shadowCount < 2) {
+    const baitMove = moves.find((move) => move !== blockingMove);
+    if (baitMove !== undefined) return baitMove;
+  }
+  return [4, 0, 2, 6, 8, 1, 3, 5, 7].find((index) => moves.includes(index)) ?? findBestMove(game.board, game.aiSymbol, game.playerSymbol);
 }
 
 function armLocalHarmonyShield(game) {
@@ -572,6 +718,7 @@ function armLocalHarmonyShield(game) {
 }
 
 function performLocalAiMove(game) {
+  ensureLocalMaestroState(game);
   let maestroAbility = null;
   let aiChoice = chooseLocalPhrolovaSkill({
     board: game.board,
@@ -580,33 +727,53 @@ function performLocalAiMove(game) {
     difficulty: game.difficulty,
   });
 
-  if (game.difficulty === 'maestro' && aiChoice.strategy !== 'winning-move') {
-    maestroAbility = applyLocalResonance(game);
-    if (maestroAbility) {
+  if (game.difficulty === 'maestro') {
+    maestroAbility = applyLocalHecate(game);
+    if (!maestroAbility) {
+      maestroAbility = applyLocalResonance(game);
+      if (maestroAbility) {
+        game.lastMaestroAbility = maestroAbility;
+        applyLocalOutcome(game);
+        if (game.status === 'playing') game.currentTurn = game.playerSymbol;
+        return { ...aiChoice, move: maestroAbility.move, maestroAbility };
+      }
+    }
+    if (!maestroAbility && canUseLocalSymphony(game)) {
+      maestroAbility = applyLocalSymphony(game);
       game.lastMaestroAbility = maestroAbility;
       applyLocalOutcome(game);
-      if (game.status === 'playing') game.currentTurn = game.playerSymbol;
-      return { ...aiChoice, move: maestroAbility.move, maestroAbility };
+      return { ...aiChoice, move: maestroAbility?.move ?? null, maestroAbility };
     }
-    aiChoice = chooseLocalPhrolovaSkill({
-      board: game.board,
-      aiSymbol: game.aiSymbol,
-      playerSymbol: game.playerSymbol,
-      difficulty: 'impossible',
-    });
+  }
+
+  if (game.difficulty === 'maestro') {
+    aiChoice = {
+      ...aiChoice,
+      skill: maestroAbility?.name || aiChoice.skill,
+      dialogue: maestroAbility?.dialogue || aiChoice.dialogue,
+      effect: maestroAbility?.effect || aiChoice.effect,
+      strategy: maestroAbility ? 'maestro-bait' : 'maestro-bait',
+      move: chooseLocalMaestroBaitMove(game),
+    };
   }
 
   const move = aiChoice.move;
   if (move === null || game.board[move]) {
+    restoreLocalHecate(game);
     game.lastPhrolovaSkill = aiChoice;
     game.currentTurn = game.playerSymbol;
-    return { ...aiChoice, maestroAbility: null };
+    game.lastMaestroAbility = maestroAbility;
+    return { ...aiChoice, maestroAbility };
   }
 
   game.boardHistory.push([...game.board]);
   game.board[move] = game.aiSymbol;
+  const restoredShadow = restoreLocalHecate(game);
+  if (maestroAbility && restoredShadow) {
+    maestroAbility.affectedCells = [...new Set([...(maestroAbility.affectedCells || []), restoredShadow.index])];
+  }
   game.lastPhrolovaSkill = aiChoice;
-  game.lastMaestroAbility = null;
+  game.lastMaestroAbility = maestroAbility;
   game.lastMove = { by: 'ai', index: move, strategy: aiChoice.strategy };
   game.history.push({
     by: 'ai',
@@ -657,6 +824,7 @@ function createLocalGame({ playerSymbol = state.selectedSymbol, difficulty = sta
     boardHistory: [],
     abilityUsage: { resonanceOverrideUsed: false, symphonyOfRebirthUsed: false },
     temporaryEffects: { hecateShadow: null },
+    maestro: { resonanceUsed: false, symphonyUsed: false, shadowCount: 0 },
     lastPhrolovaSkill: null,
     lastMaestroAbility: null,
     lastMove: null,
@@ -719,13 +887,19 @@ function localMove(payload) {
   game.skills.insight.lastSuggestedMove = null;
   game.currentTurn = game.aiSymbol;
 
-  applyLocalOutcome(game);
+  let maestroAbility = null;
+  const playerOutcome = evaluateBoard(game.board);
+  if (game.difficulty === 'maestro' && (playerOutcome.winner || playerOutcome.isDraw) && canUseLocalSymphony(game, playerOutcome)) {
+    maestroAbility = applyLocalSymphony(game);
+    game.lastMaestroAbility = maestroAbility;
+  } else {
+    applyLocalOutcome(game);
+  }
 
   let phrolovaSkill = null;
-  let maestroAbility = null;
   if (game.status === 'playing') {
     phrolovaSkill = performLocalAiMove(game);
-    maestroAbility = phrolovaSkill.maestroAbility || null;
+    maestroAbility = phrolovaSkill.maestroAbility || maestroAbility || null;
   }
 
   state.localGame = game;
@@ -801,15 +975,23 @@ function localUseShield() {
   game.skills.harmonyShield.active = false;
   game.skills.harmonyShield.pendingBlockMove = null;
   game.currentTurn = game.aiSymbol;
-  applyLocalOutcome(game);
+  let maestroAbility = null;
+  const playerOutcome = evaluateBoard(game.board);
+  if (game.difficulty === 'maestro' && (playerOutcome.winner || playerOutcome.isDraw) && canUseLocalSymphony(game, playerOutcome)) {
+    maestroAbility = applyLocalSymphony(game);
+    game.lastMaestroAbility = maestroAbility;
+  } else {
+    applyLocalOutcome(game);
+  }
 
   let phrolovaSkill = null;
   if (game.status === 'playing') phrolovaSkill = performLocalAiMove(game);
+  maestroAbility = phrolovaSkill?.maestroAbility ?? maestroAbility;
   return withLocalNotice({
     game: publicLocalGame(game),
     aiMove: phrolovaSkill?.move ?? null,
     phrolovaSkill: toPublicPhrolovaSkill(phrolovaSkill),
-    maestroAbility: phrolovaSkill?.maestroAbility ?? null,
+    maestroAbility: maestroAbility ?? null,
   });
 }
 

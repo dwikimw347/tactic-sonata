@@ -96,6 +96,40 @@ function performAIMove(game) {
   maestroAbilityService.ensureMaestroState(game);
   let maestroAbility = null;
 
+  if (game.difficulty === 'maestro') {
+    if (maestroAbilityService.canUseHecatesShadow(game)) {
+      maestroAbility = maestroAbilityService.applyHecatesShadow(game);
+    } else if (maestroAbilityService.canUseResonanceOverride(game)) {
+      maestroAbility = maestroAbilityService.applyResonanceOverride(game);
+      game.lastMaestroAbility = maestroAbility;
+      applyOutcomeIfFinished(game);
+      if (game.status === 'playing') {
+        game.currentTurn = game.playerSymbol;
+        playerSkillService.armHarmonyShield(game);
+      }
+      return {
+        skill: maestroAbility.name,
+        dialogue: maestroAbility.dialogue,
+        effect: maestroAbility.effect,
+        strategy: maestroAbility.reason || 'maestro-override',
+        move: maestroAbility.move ?? maestroAbility.affectedCells?.[0] ?? null,
+        maestroAbility,
+      };
+    } else if (maestroAbilityService.canUseSymphonyOfRebirth(game)) {
+      maestroAbility = maestroAbilityService.applySymphonyOfRebirth(game);
+      game.lastMaestroAbility = maestroAbility;
+      applyOutcomeIfFinished(game);
+      return {
+        skill: maestroAbility.name,
+        dialogue: maestroAbility.dialogue,
+        effect: maestroAbility.effect,
+        strategy: 'symphony-rebirth',
+        move: maestroAbility.move ?? null,
+        maestroAbility,
+      };
+    }
+  }
+
   const aiChoice = choosePhrolovaSkill({
     board: game.board,
     aiSymbol: game.aiSymbol,
@@ -109,35 +143,15 @@ function performAIMove(game) {
     return aiChoice;
   }
 
-  if (game.difficulty === 'maestro') {
-    const winningMove = aiChoice.strategy === 'winning-move' ? aiChoice.move : null;
-    if (winningMove === null && maestroAbilityService.canUseResonanceOverride(game)) {
-      maestroAbility = maestroAbilityService.applyResonanceOverride(game);
-      const outcome = evaluateBoard(game.board);
-      if (outcome.winner || outcome.isDraw) {
-        game.lastMaestroAbility = maestroAbility;
-        applyOutcomeIfFinished(game);
-        return { ...aiChoice, move: maestroAbility?.affectedCells?.[0] ?? null, maestroAbility };
-      }
-    } else if (winningMove === null && maestroAbilityService.canUseHecatesShadow(game)) {
-      maestroAbility = maestroAbilityService.applyHecatesShadow(game);
+  const effectiveChoice = game.difficulty === 'maestro'
+    ? {
+      ...aiChoice,
+      skill: maestroAbility?.name || aiChoice.skill,
+      dialogue: maestroAbility?.dialogue || aiChoice.dialogue,
+      effect: maestroAbility?.effect || aiChoice.effect,
+      strategy: maestroAbility ? `maestro-${maestroAbility.reason || 'bait'}` : 'maestro-bait',
+      move: maestroAbilityService.chooseMaestroBaitMove(game),
     }
-
-    if (!maestroAbility && maestroAbilityService.canUseSymphonyOfRebirth(game)) {
-      maestroAbility = maestroAbilityService.applySymphonyOfRebirth(game);
-      game.lastMaestroAbility = maestroAbility;
-      applyOutcomeIfFinished(game);
-      return { ...aiChoice, move: maestroAbility?.move ?? null, maestroAbility };
-    }
-  }
-
-  const effectiveChoice = game.difficulty === 'maestro' && aiChoice.strategy !== 'winning-move'
-    ? choosePhrolovaSkill({
-      board: game.board,
-      aiSymbol: game.aiSymbol,
-      playerSymbol: game.playerSymbol,
-      difficulty: 'impossible',
-    })
     : aiChoice;
   const move = effectiveChoice.move;
 
@@ -220,6 +234,11 @@ function createGame({ playerSymbol = 'X', difficulty, matchMode, preserveMatch =
     temporaryEffects: {
       hecateShadow: null,
     },
+    maestro: {
+      resonanceUsed: false,
+      symphonyUsed: Boolean(match.abilityUsage?.symphonyOfRebirthUsed),
+      shadowCount: 0,
+    },
     lastPhrolovaSkill: null,
     lastMaestroAbility: null,
     lastMove: null,
@@ -290,7 +309,8 @@ function makeMove(req, res) {
 
   let maestroAbility = null;
   const playerOutcome = evaluateBoard(game.board);
-  if (game.difficulty === 'maestro' && maestroAbilityService.canUseSymphonyOfRebirth(game, playerOutcome)) {
+  const playerEndedRound = Boolean(playerOutcome.winner || playerOutcome.isDraw);
+  if (game.difficulty === 'maestro' && playerEndedRound && maestroAbilityService.canUseSymphonyOfRebirth(game, playerOutcome)) {
     maestroAbility = maestroAbilityService.applySymphonyOfRebirth(game);
     game.lastMaestroAbility = maestroAbility;
     applyOutcomeIfFinished(game);
