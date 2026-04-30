@@ -20,6 +20,7 @@ const state = {
   aiThinking: false,
   phrolovaEffectTimer: null,
   maestroEffectTimer: null,
+  abilityToastTimer: null,
   useLocalMode: STATIC_HOST_LOCAL_MODE,
   backendWarningShown: false,
   pendingSystemMessage: STATIC_HOST_LOCAL_MODE ? BACKEND_UNAVAILABLE_MESSAGE : '',
@@ -1253,6 +1254,43 @@ function updateMaestroAbilityDialog(abilityName) {
   return true;
 }
 
+function showAbilityToast(text, effectClass = '') {
+  const el = document.getElementById('abilityToast');
+  if (!el) return;
+
+  if (state.abilityToastTimer) {
+    window.clearTimeout(state.abilityToastTimer);
+    state.abilityToastTimer = null;
+  }
+
+  el.textContent = text;
+  el.className = `ability-toast ${effectClass || ''}`.trim();
+  el.classList.add('show');
+
+  state.abilityToastTimer = window.setTimeout(() => {
+    el.classList.remove('show');
+    state.abilityToastTimer = null;
+  }, 1800);
+}
+
+function handlePhrolovaTurn({ abilityName = null, abilityEffect = '', endState = null } = {}) {
+  if (abilityName) {
+    const handled = updateMaestroAbilityDialog(abilityName);
+    if (handled) {
+      showAbilityToast(abilityName, abilityEffect);
+      return true;
+    }
+  }
+
+  if (endState) {
+    updatePhrolovaDialog(endState);
+    return true;
+  }
+
+  updatePhrolovaDialog('playing');
+  return true;
+}
+
 function setPhrolovaSkillDisplay(phrolovaSkill) {
   if (!elements.phrolovaSkillName) return;
 
@@ -1446,7 +1484,8 @@ function renderGame(game, options = {}) {
     }
   }
   syncSkillHints(game);
-  const activeMaestroAbility = options.maestroAbility ?? game?.maestroAbility ?? null;
+  const hasExplicitMaestroAbility = Object.prototype.hasOwnProperty.call(options, 'maestroAbility');
+  const activeMaestroAbility = hasExplicitMaestroAbility ? options.maestroAbility : null;
   if (activeMaestroAbility) {
     state.maestroAbilityCells = activeMaestroAbility.affectedCells || [];
     state.maestroBoardEffect = activeMaestroAbility.effect;
@@ -1476,10 +1515,13 @@ function renderGame(game, options = {}) {
     }, 950);
   }
   const maestroDialogHandled = activeMaestroAbility
-    ? updateMaestroAbilityDialog(activeMaestroAbility.name)
+    ? handlePhrolovaTurn({
+      abilityName: activeMaestroAbility.name,
+      abilityEffect: activeMaestroAbility.effect,
+    })
     : false;
 
-  if (options.systemMessage && !maestroDialogHandled && (!game || game.status !== 'finished')) {
+  if (options.systemMessage && !maestroDialogHandled && (!game || game.status === 'idle')) {
     setDialog(options.systemMessage);
     return;
   }
@@ -1492,22 +1534,22 @@ function renderGame(game, options = {}) {
   if (game.status === 'playing') {
     setPhrolovaAvatar('play');
     if (options.phrolovaMoved && !maestroDialogHandled) {
-      updatePhrolovaDialog('playing');
+      handlePhrolovaTurn();
     }
     return;
   }
 
   if (game.winner === 'player') {
     setPhrolovaAvatar('lose');
-    if (!maestroDialogHandled) updatePhrolovaDialog('lose');
+    if (!maestroDialogHandled) handlePhrolovaTurn({ endState: 'lose' });
     safePlay('win');
   } else if (game.winner === 'ai') {
     setPhrolovaAvatar('win');
-    if (!maestroDialogHandled) updatePhrolovaDialog('win');
+    if (!maestroDialogHandled) handlePhrolovaTurn({ endState: 'win' });
     safePlay('lose');
   } else if (game.winner === 'draw') {
     setPhrolovaAvatar('draw');
-    if (!maestroDialogHandled) updatePhrolovaDialog('draw');
+    if (!maestroDialogHandled) handlePhrolovaTurn({ endState: 'draw' });
     safePlay('draw');
   }
 

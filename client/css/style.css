@@ -849,6 +849,41 @@ input::placeholder {
   pointer-events: none;
 }
 
+.ability-toast {
+  min-height: 28px;
+  margin-top: 8px;
+  color: var(--gold);
+  font-family: var(--display);
+  font-size: clamp(0.88rem, 1.4vw, 1.08rem);
+  letter-spacing: 0.08em;
+  opacity: 0;
+  pointer-events: none;
+  text-align: center;
+  text-transform: uppercase;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.ability-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ability-toast.resonance-override {
+  color: #f2b7ff;
+  text-shadow: 0 0 14px rgba(197, 72, 255, 0.52);
+}
+
+.ability-toast.hecate-shadow {
+  color: #d7c6ff;
+  text-shadow: 0 0 14px rgba(100, 60, 130, 0.52);
+}
+
+.ability-toast.symphony-rebirth {
+  color: #fff4ea;
+  text-shadow: 0 0 18px rgba(240, 68, 95, 0.68);
+}
+
 .cell:disabled {
   cursor: not-allowed;
 }
