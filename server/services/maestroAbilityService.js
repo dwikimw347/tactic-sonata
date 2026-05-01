@@ -446,7 +446,8 @@ function tryMaestroAbilities(gameState) {
   }
 
   if (isLossImminent(gameState.board, gameState.playerSymbol)) {
-    if (canUseHecatesShadow(gameState)) {
+    const shadowTarget = findHecateShadowTarget(gameState);
+    if (shadowTarget?.reason === 'completed-line' && canUseHecatesShadow(gameState)) {
       const shadow = applyHecatesShadow(gameState);
       if (shadow) return shadow;
     }
@@ -463,14 +464,14 @@ function tryMaestroAbilities(gameState) {
   }
 
   if (isDrawImminent(gameState.board, gameState.aiSymbol) || !hasWinningPath(gameState.board, gameState.aiSymbol)) {
-    if (canUseSymphonyOfRebirth(gameState)) {
-      const rebirth = applySymphonyOfRebirth(gameState);
-      if (rebirth) return rebirth;
-    }
-
     if (canUseResonanceOverride(gameState)) {
       const resonance = applyResonanceOverride(gameState);
       if (resonance) return resonance;
+    }
+
+    if (canUseSymphonyOfRebirth(gameState)) {
+      const rebirth = applySymphonyOfRebirth(gameState);
+      if (rebirth) return rebirth;
     }
   }
 

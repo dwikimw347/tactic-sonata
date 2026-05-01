@@ -841,8 +841,11 @@ function tryLocalMaestroAbilities(game) {
   }
 
   if (isLocalLossImminent(game.board, game.playerSymbol)) {
-    const shadow = applyLocalHecate(game);
-    if (shadow) return shadow;
+    const shadowTarget = findLocalHecateTarget(game);
+    if (shadowTarget?.reason === 'completed-line') {
+      const shadow = applyLocalHecate(game);
+      if (shadow) return shadow;
+    }
 
     const resonance = applyLocalResonance(game);
     if (resonance) return resonance;
@@ -853,12 +856,12 @@ function tryLocalMaestroAbilities(game) {
   }
 
   if (isLocalDrawImminent(game.board, game.aiSymbol) || !hasLocalWinningPath(game.board, game.aiSymbol)) {
+    const resonance = applyLocalResonance(game);
+    if (resonance) return resonance;
+
     if (canUseLocalSymphony(game)) {
       return applyLocalSymphony(game);
     }
-
-    const resonance = applyLocalResonance(game);
-    if (resonance) return resonance;
   }
 
   const resonance = applyLocalResonance(game);
