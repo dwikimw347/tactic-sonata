@@ -42,6 +42,11 @@ function publicGameState(game) {
       temporaryEffects: {
         hecateShadow: null,
       },
+      maestroUsage: {
+        resonanceUsed: false,
+        shadowUsed: false,
+        rebirthUsed: false,
+      },
       skills: playerSkillService.getSkillStatus(null),
       phrolovaSkill: null,
       maestroAbility: null,
@@ -225,6 +230,28 @@ function avoidTemporaryShadowMove(game, choice) {
   };
 }
 
+function shouldDelayMaestroWin(game) {
+  return game.difficulty === 'maestro' && !maestroAbilityService.allMaestroUsed(game.maestroUsage);
+}
+
+function chooseMaestroSetupMove(game) {
+  const phase = maestroAbilityService.getMaestroPhase(game);
+
+  if (phase === 'forceShadow') {
+    return maestroAbilityService.createThreatForPlayer(game);
+  }
+
+  if (phase === 'forceResonance') {
+    return maestroAbilityService.createResonanceSetup(game);
+  }
+
+  if (phase === 'forceRebirth') {
+    return maestroAbilityService.createNearLossScenario(game);
+  }
+
+  return null;
+}
+
 function applyOutcomeIfFinished(game) {
   const outcome = evaluateBoard(game.board);
 
@@ -269,14 +296,14 @@ function performAIMove(game) {
 
   let effectiveChoice;
   if (game.difficulty === 'maestro') {
-    const forcedThreatMove = maestroAbilityService.createThreatForPlayer(game);
-    if (forcedThreatMove !== null) {
+    const setupMove = chooseMaestroSetupMove(game);
+    if (setupMove !== null) {
       effectiveChoice = {
         skill: 'Echo Manipulation',
         dialogue: 'Not every note follows logic... some are meant to deceive.',
         effect: 'phrolova-random',
-        strategy: 'maestro-force-threat',
-        move: forcedThreatMove,
+        strategy: `maestro-${maestroAbilityService.getMaestroPhase(game)}`,
+        move: setupMove,
       };
     } else {
       effectiveChoice = tryNormalSkills(game);
@@ -301,6 +328,27 @@ function performAIMove(game) {
       move: shadow?.mustOccupy ? shadow.index : effectiveChoice?.move,
     };
     effectiveChoice = avoidTemporaryShadowMove(game, effectiveChoice);
+  }
+
+  if (shouldDelayMaestroWin(game)) {
+    const winningMove = getAvailableMoves(game.board).find((move) => {
+      const nextBoard = [...game.board];
+      nextBoard[move] = game.aiSymbol;
+      return evaluateBoard(nextBoard).winner === game.aiSymbol;
+    });
+    if (winningMove !== undefined && effectiveChoice?.move === winningMove) {
+      const delayMove = chooseMaestroSetupMove(game);
+      if (delayMove !== null && !game.board[delayMove] && delayMove !== winningMove) {
+        effectiveChoice = {
+          ...effectiveChoice,
+          skill: 'Echo Manipulation',
+          dialogue: 'Not every note follows logic... some are meant to deceive.',
+          effect: 'phrolova-random',
+          strategy: `${effectiveChoice.strategy || 'maestro'}-delay-win`,
+          move: delayMove,
+        };
+      }
+    }
   }
 
   if (!effectiveChoice || effectiveChoice.move === null || game.board[effectiveChoice.move]) {
@@ -400,6 +448,11 @@ function createGame({ playerSymbol = 'X', difficulty, matchMode, preserveMatch =
     },
     maestro: {
       shadowCount: 0,
+    },
+    maestroUsage: {
+      resonanceUsed: false,
+      shadowUsed: false,
+      rebirthUsed: false,
     },
     lastPhrolovaSkill: null,
     lastMaestroAbility: null,

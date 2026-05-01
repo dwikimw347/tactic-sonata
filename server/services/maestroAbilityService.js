@@ -64,6 +64,15 @@ function ensureMaestroState(gameState) {
     ? gameState.maestro.shadowCount
     : 0;
 
+  if (!gameState.maestroUsage) {
+    gameState.maestroUsage = {};
+  }
+  gameState.maestroUsage = {
+    resonanceUsed: Boolean(gameState.maestroUsage.resonanceUsed),
+    shadowUsed: Boolean(gameState.maestroUsage.shadowUsed),
+    rebirthUsed: Boolean(gameState.maestroUsage.rebirthUsed),
+  };
+
   return gameState;
 }
 
@@ -91,6 +100,18 @@ function getRecentMaestroActionCount(gameState, steps = 4) {
   return gameState.maestroHistory
     .slice(Math.max(0, gameState.maestroHistory.length - steps))
     .reduce((count, snapshot) => count + (snapshot.actions?.length || 0), 0);
+}
+
+function allMaestroUsed(usage = {}) {
+  return Boolean(usage.shadowUsed && usage.resonanceUsed && usage.rebirthUsed);
+}
+
+function getMaestroPhase(gameState) {
+  ensureMaestroState(gameState);
+  if (!gameState.maestroUsage.shadowUsed) return 'forceShadow';
+  if (!gameState.maestroUsage.resonanceUsed) return 'forceResonance';
+  if (!gameState.maestroUsage.rebirthUsed) return 'forceRebirth';
+  return 'finish';
 }
 
 function findPlayerThreat(board, playerSymbol) {
@@ -281,6 +302,7 @@ function applyResonanceOverride(gameState) {
   pushBoardHistory(gameState);
   gameState.board[target.index] = gameState.aiSymbol;
   gameState.abilityUsage.resonanceOverrideUsed = false;
+  gameState.maestroUsage.resonanceUsed = true;
   recordMaestroAction(gameState, {
     type: 'override',
     index: target.index,
@@ -335,6 +357,7 @@ function applyHecatesShadow(gameState) {
     mustOccupy: Boolean(threat.mustOccupyShadow),
   };
   gameState.maestro.shadowCount += 1;
+  gameState.maestroUsage.shadowUsed = true;
 
   return createAbilityResult('hecate', [shadowCell, threat.emptyCell], {
     shadowCell,
@@ -401,6 +424,7 @@ function applySymphonyOfRebirth(gameState) {
   gameState.status = 'playing';
   gameState.temporaryEffects.hecateShadow = null;
   gameState.abilityUsage.symphonyOfRebirthUsed = false;
+  gameState.maestroUsage.rebirthUsed = true;
   if (gameState.match) {
     gameState.match.abilityUsage = {
       ...(gameState.match.abilityUsage || {}),
@@ -490,6 +514,31 @@ function createThreatForPlayer(gameState) {
   return baitMove ?? moves[0];
 }
 
+function createResonanceSetup(gameState) {
+  ensureMaestroState(gameState);
+  const moves = getAvailableMoves(gameState.board);
+  if (!isMaestro(gameState) || moves.length === 0) return null;
+
+  const winningMove = findWinningMove(gameState.board, gameState.aiSymbol);
+  const candidates = [1, 3, 5, 7, 0, 2, 6, 8, 4]
+    .filter((index) => moves.includes(index) && index !== winningMove);
+  return candidates[0] ?? moves.find((move) => move !== winningMove) ?? moves[0];
+}
+
+function createNearLossScenario(gameState) {
+  ensureMaestroState(gameState);
+  const moves = getAvailableMoves(gameState.board);
+  if (!isMaestro(gameState) || moves.length === 0) return null;
+
+  const blockingMove = findBlockingMove(gameState.board, gameState.playerSymbol);
+  if (blockingMove !== null) {
+    const baitMove = moves.find((move) => move !== blockingMove);
+    if (baitMove !== undefined) return baitMove;
+  }
+
+  return createThreatForPlayer(gameState) ?? createResonanceSetup(gameState);
+}
+
 function tryMaestroAbilities(gameState) {
   ensureMaestroState(gameState);
   if (!isMaestro(gameState)) return null;
@@ -504,6 +553,31 @@ function tryMaestroAbilities(gameState) {
 
     const resonance = applyResonanceOverride(gameState);
     if (resonance) return resonance;
+  }
+
+  const phase = getMaestroPhase(gameState);
+  if (phase === 'forceShadow') {
+    if (canUseHecatesShadow(gameState)) {
+      const shadow = applyHecatesShadow(gameState);
+      if (shadow) return shadow;
+    }
+    return null;
+  }
+
+  if (phase === 'forceResonance') {
+    if (canUseResonanceOverride(gameState)) {
+      const resonance = applyResonanceOverride(gameState);
+      if (resonance) return resonance;
+    }
+    return null;
+  }
+
+  if (phase === 'forceRebirth') {
+    if (canUseSymphonyOfRebirth(gameState)) {
+      const rebirth = applySymphonyOfRebirth(gameState);
+      if (rebirth) return rebirth;
+    }
+    return null;
   }
 
   if (isLossImminent(gameState.board, gameState.playerSymbol)) {
@@ -579,7 +653,11 @@ module.exports = {
   toPublicMaestroAbility,
   chooseMaestroBaitMove,
   createThreatForPlayer,
+  createResonanceSetup,
+  createNearLossScenario,
   tryMaestroAbilities,
+  allMaestroUsed,
+  getMaestroPhase,
   isDrawImminent,
   isLossImminent,
   hasWinningPath,

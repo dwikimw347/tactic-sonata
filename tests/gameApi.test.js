@@ -103,8 +103,16 @@ describe('Game API', () => {
       .post('/api/game/start')
       .send({ playerSymbol: 'X', difficulty: 'maestro', matchMode: 3 });
 
-    await request(app).post('/api/game/move').send({ index: 0 }).expect(200);
-    const response = await request(app).post('/api/game/move').send({ index: 1 }).expect(200);
+    let game;
+    let response;
+    for (let turn = 0; turn < 5; turn += 1) {
+      const index = game
+        ? game.board.findIndex((cell) => !cell)
+        : 0;
+      response = await request(app).post('/api/game/move').send({ index }).expect(200);
+      game = response.body.data.game;
+      if (response.body.data.maestroAbility || game.status !== 'playing') break;
+    }
 
     expect(response.body.data).toHaveProperty('maestroAbility');
     expect(response.body.data.maestroAbility).toEqual(expect.any(Object));
