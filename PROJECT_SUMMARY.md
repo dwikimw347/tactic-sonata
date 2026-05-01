@@ -98,9 +98,9 @@ Pada difficulty Maestro of the Lost Beyond, Phrolova memiliki ability khusus:
   Menghilangkan sementara satu mark player. Jika Phrolova mengisi cell itu, mark player tidak kembali. Ability ini juga bisa dipakai berulang saat player punya ancaman atau bahkan sudah membentuk garis menang.
 
 - **Symphony of Rebirth**  
-  Mengulang state board ke beberapa turn sebelumnya lalu memberi Phrolova bonus mark. Ability ini sekarang no cooldown dan dapat dipakai lagi ketika board penuh, draw imminent, atau player hampir menang.
+  Mengulang state board ke 2-3 snapshot sebelumnya lalu memberi Phrolova bonus mark. Ability ini sekarang no cooldown, lebih sering aktif, dan memakai `maestroHistory` untuk mengunci mark yang sebelumnya terkena Resonance Override atau Hecate's Shadow menjadi milik Phrolova secara permanen.
 
-Maestro memakai ability ini untuk mencegah player menang, mencegah draw, memecah symmetry board, dan menciptakan jalur kemenangan baru. Behavior ini diterapkan di backend Express dan juga fallback lokal frontend untuk GitHub Pages.
+Maestro memakai ability ini untuk mencegah player menang, mencegah draw, memecah symmetry board, dan menciptakan jalur kemenangan baru. Resonance Override dan Hecate's Shadow mencatat aksi manipulasi ke `maestroHistory`, lalu Symphony of Rebirth dapat memutar ulang board sambil mengubah hasil manipulasi tersebut menjadi keuntungan permanen untuk Phrolova. Behavior ini diterapkan di backend Express dan juga fallback lokal frontend untuk GitHub Pages.
 
 ## Player Skills
 
@@ -209,7 +209,7 @@ Project saat ini sudah memiliki:
 - mode Multiplayer realtime Supabase
 - skill system untuk player
 - skill dan ability Phrolova
-- Maestro boss AI dengan anti-draw/anti-loss behavior dan unlimited ability usage
+- Maestro boss AI dengan anti-draw/anti-loss behavior, unlimited ability usage, dan Symphony of Rebirth berbasis `maestroHistory`
 - audio, voice, SFX, dan dialog system
 - title screen dan mode select
 - GitHub Pages static fallback
