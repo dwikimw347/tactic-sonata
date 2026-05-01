@@ -69,7 +69,7 @@ Difficulty yang tersedia:
 
 Impossible adalah mode fair optimal berbasis minimax.
 
-Maestro of the Lost Beyond adalah boss mode yang sengaja tidak adil. Phrolova memakai ability khusus untuk mencegah draw atau kekalahan, memanipulasi board, dan menjaga agar ia hampir selalu menang. Pada versi terbaru, ability Maestro bersifat unlimited/no cooldown sehingga Phrolova dapat terus memakai manipulasi board saat game menuju draw atau player win.
+Maestro of the Lost Beyond adalah boss mode yang sengaja tidak adil. Phrolova memakai ability khusus untuk mencegah draw atau kekalahan, memanipulasi board, dan menjaga agar ia hampir selalu menang. Pada versi terbaru, Maestro memakai sistem phase-based forcing agar Hecate's Shadow, Resonance Override, dan Symphony of Rebirth muncul dalam satu match sebelum Phrolova masuk ke fase finishing. Ability Maestro juga bersifat unlimited/no cooldown sehingga Phrolova dapat terus memakai manipulasi board saat game menuju draw atau player win.
 
 ## Phrolova Skills
 
@@ -79,7 +79,7 @@ Phrolova memiliki beberapa skill utama:
   Phrolova memilih langkah yang terasa tidak sepenuhnya logis atau sulit ditebak. Skill ini memberi kesan bahwa ia sedang menipu ritme permainan dan memancing player masuk ke posisi buruk.
 
 - **Perfect Cadence**  
-  Phrolova menemukan langkah kemenangan ketika ada peluang menyelesaikan tiga mark dalam satu garis. Ini adalah “final note” yang mengakhiri ronde untuk Phrolova.
+  Phrolova menemukan langkah kemenangan ketika ada peluang menyelesaikan tiga mark dalam satu garis. Ini adalah final note yang mengakhiri ronde untuk Phrolova.
 
 - **Crimson Interruption**  
   Phrolova memblokir ancaman player sebelum player bisa menang. Skill ini membuat langkah player terasa dipotong atau disenyapkan.
@@ -100,7 +100,11 @@ Pada difficulty Maestro of the Lost Beyond, Phrolova memiliki ability khusus:
 - **Symphony of Rebirth**  
   Mengulang state board ke 2-3 snapshot sebelumnya lalu memberi Phrolova bonus mark. Ability ini sekarang no cooldown, lebih sering aktif, dan memakai `maestroHistory` untuk mengunci mark yang sebelumnya terkena Resonance Override atau Hecate's Shadow menjadi milik Phrolova secara permanen.
 
-Maestro memakai ability ini untuk mencegah player menang, mencegah draw, memecah symmetry board, dan menciptakan jalur kemenangan baru. Resonance Override dan Hecate's Shadow mencatat aksi manipulasi ke `maestroHistory`, lalu Symphony of Rebirth dapat memutar ulang board sambil mengubah hasil manipulasi tersebut menjadi keuntungan permanen untuk Phrolova. Behavior ini diterapkan di backend Express dan juga fallback lokal frontend untuk GitHub Pages.
+Maestro memakai ability ini untuk mencegah player menang, mencegah draw, memecah symmetry board, dan menciptakan jalur kemenangan baru. AI melacak penggunaan ability melalui `maestroUsage`: `shadowUsed`, `resonanceUsed`, dan `rebirthUsed`.
+
+Dari state ini, Maestro bergerak melalui fase `forceShadow`, `forceResonance`, `forceRebirth`, lalu `finish`. Selama fase forcing, Phrolova sengaja menunda kemenangan, memancing ancaman player, dan memilih setup move yang membuka kondisi ability berikutnya. Setelah semua ability muncul, AI kembali ke prioritas dominasi normal: Maestro abilities, normal skills, lalu minimax.
+
+Resonance Override dan Hecate's Shadow mencatat aksi manipulasi ke `maestroHistory`, lalu Symphony of Rebirth dapat memutar ulang board sambil mengubah hasil manipulasi tersebut menjadi keuntungan permanen untuk Phrolova. Behavior ini diterapkan di backend Express dan juga fallback lokal frontend untuk GitHub Pages.
 
 ## Player Skills
 
@@ -209,7 +213,7 @@ Project saat ini sudah memiliki:
 - mode Multiplayer realtime Supabase
 - skill system untuk player
 - skill dan ability Phrolova
-- Maestro boss AI dengan anti-draw/anti-loss behavior, unlimited ability usage, dan Symphony of Rebirth berbasis `maestroHistory`
+- Maestro boss AI dengan anti-draw/anti-loss behavior, phase-based forcing untuk semua ability, unlimited ability usage, dan Symphony of Rebirth berbasis `maestroHistory`
 - audio, voice, SFX, dan dialog system
 - title screen dan mode select
 - GitHub Pages static fallback
