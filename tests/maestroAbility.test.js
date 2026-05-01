@@ -42,7 +42,7 @@ describe('maestroAbilityService', () => {
     expect(ability.affectedCells).toEqual([2]);
   });
 
-  test('Resonance Override cannot be used twice in one game', () => {
+  test('Resonance Override can be used repeatedly in Maestro mode', () => {
     const game = createGame({
       board: ['O', 'O', 'X', null, null, null, null, null, null],
     });
@@ -50,7 +50,7 @@ describe('maestroAbilityService', () => {
     applyResonanceOverride(game);
     game.board = ['O', null, null, 'O', null, null, 'X', null, null];
 
-    expect(canUseResonanceOverride(game)).toBe(false);
+    expect(canUseResonanceOverride(game)).toBe(true);
   });
 
   test('Resonance Override prioritizes winning conversion', () => {
@@ -122,7 +122,7 @@ describe('maestroAbilityService', () => {
     expect(game.board[4]).toBe('O');
   });
 
-  test('Symphony of Rebirth cannot be used twice in one match/session', () => {
+  test('Symphony of Rebirth can be used repeatedly in one match/session', () => {
     const game = createGame({
       boardHistory: [
         [null, null, null, null, null, null, null, null, null],
@@ -133,7 +133,8 @@ describe('maestroAbilityService', () => {
     });
 
     applySymphonyOfRebirth(game);
+    game.board = ['X', 'X', 'X', null, 'O', null, null, null, null];
 
-    expect(canUseSymphonyOfRebirth(game)).toBe(false);
+    expect(canUseSymphonyOfRebirth(game)).toBe(true);
   });
 });

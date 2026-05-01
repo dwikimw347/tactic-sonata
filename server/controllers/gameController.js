@@ -396,10 +396,7 @@ function createGame({ playerSymbol = 'X', difficulty, matchMode, preserveMatch =
       hecateShadow: null,
     },
     maestro: {
-      resonanceUsed: false,
-      symphonyUsed: Boolean(match.abilityUsage?.symphonyOfRebirthUsed),
       shadowCount: 0,
-      shadowUsedCount: 0,
     },
     lastPhrolovaSkill: null,
     lastMaestroAbility: null,
@@ -587,13 +584,24 @@ function useShield(req, res) {
       return res.status(result.statusCode).json(apiResponse(false, result.message, result.data || {}));
     }
 
-    applyOutcomeIfFinished(game);
-
     let phrolovaSkill = null;
     let maestroAbility = null;
+    const playerOutcome = evaluateBoard(game.board);
+    if (game.difficulty === 'maestro' && (playerOutcome.winner || playerOutcome.isDraw)) {
+      maestroAbility = tryMaestroTerminalIntervention(game, playerOutcome);
+      game.lastMaestroAbility = maestroAbility;
+      if (maestroAbility?.effect === 'resonance-override' || maestroAbility?.effect === 'symphony-rebirth') {
+        applyOutcomeIfFinished(game);
+      } else if (!maestroAbility) {
+        applyOutcomeIfFinished(game);
+      }
+    } else {
+      applyOutcomeIfFinished(game);
+    }
+
     if (game.status === 'playing') {
       phrolovaSkill = performAIMove(game);
-      maestroAbility = phrolovaSkill?.maestroAbility || null;
+      maestroAbility = phrolovaSkill?.maestroAbility || maestroAbility;
     }
 
     scoreStore.setCurrentGame(game);
