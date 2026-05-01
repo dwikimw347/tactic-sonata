@@ -20,6 +20,7 @@ function createGame(overrides = {}) {
     currentTurn: 'O',
     history: [],
     boardHistory: [],
+    maestroHistory: [],
     match: {
       abilityUsage: {
         symphonyOfRebirthUsed: false,
@@ -90,17 +91,21 @@ describe('maestroAbilityService', () => {
   });
 
   test('Symphony of Rebirth rolls board back 3 turns', () => {
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.99);
+    const history = [
+      [null, null, null, null, null, null, null, null, null],
+      ['X', null, null, null, null, null, null, null, null],
+      ['X', null, null, null, 'O', null, null, null, null],
+      ['X', 'X', null, null, 'O', null, null, null, null],
+    ];
     const game = createGame({
-      boardHistory: [
-        [null, null, null, null, null, null, null, null, null],
-        ['X', null, null, null, null, null, null, null, null],
-        ['X', null, null, null, 'O', null, null, null, null],
-        ['X', 'X', null, null, 'O', null, null, null, null],
-      ],
+      boardHistory: history,
+      maestroHistory: history.map((board) => ({ board, actions: [] })),
       board: ['X', 'X', 'X', null, 'O', null, null, null, null],
     });
 
     const ability = applySymphonyOfRebirth(game);
+    randomSpy.mockRestore();
 
     expect(ability.name).toBe('Symphony of Rebirth');
     expect(game.board[0]).toBe('X');
@@ -136,5 +141,26 @@ describe('maestroAbilityService', () => {
     game.board = ['X', 'X', 'X', null, 'O', null, null, null, null];
 
     expect(canUseSymphonyOfRebirth(game)).toBe(true);
+  });
+
+  test('Symphony of Rebirth permanently locks recent overridden and shadowed cells for Phrolova', () => {
+    const game = createGame({
+      board: ['O', 'O', 'X', 'X', 'X', null, null, null, null],
+    });
+
+    const resonance = applyResonanceOverride(game);
+    expect(resonance.name).toBe('Resonance Override');
+
+    game.board[5] = 'X';
+    game.history.push({ by: 'player', symbol: 'X', index: 5 });
+    const shadow = applyHecatesShadow(game);
+    expect(shadow.effect).toBe('hecate-shadow');
+
+    const rebirth = applySymphonyOfRebirth(game);
+
+    expect(rebirth.name).toBe('Symphony of Rebirth');
+    expect(rebirth.lockedCells).toEqual(expect.arrayContaining([2, 3]));
+    expect(game.board[2]).toBe('O');
+    expect(game.board[3]).toBe('O');
   });
 });

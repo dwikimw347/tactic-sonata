@@ -34,6 +34,7 @@ function publicGameState(game) {
       matchMode: scoreStore.getMatchMode(),
       history: [],
       boardHistory: [],
+      maestroHistory: [],
       abilityUsage: {
         resonanceOverrideUsed: false,
         symphonyOfRebirthUsed: false,
@@ -56,6 +57,7 @@ function publicGameState(game) {
     score: scoreStore.getScore(),
     history: game.history || [],
     boardHistory: game.boardHistory || [],
+    maestroHistory: game.maestroHistory || [],
     abilityUsage: game.abilityUsage || {},
     temporaryEffects: game.temporaryEffects || {},
     skills: playerSkillService.getSkillStatus(game),
@@ -388,6 +390,7 @@ function createGame({ playerSymbol = 'X', difficulty, matchMode, preserveMatch =
     skills: playerSkillService.createSkillState(),
     history: [],
     boardHistory: [],
+    maestroHistory: [],
     abilityUsage: {
       resonanceOverrideUsed: false,
       symphonyOfRebirthUsed: Boolean(match.abilityUsage?.symphonyOfRebirthUsed),

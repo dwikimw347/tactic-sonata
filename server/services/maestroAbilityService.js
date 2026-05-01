@@ -53,6 +53,10 @@ function ensureMaestroState(gameState) {
     gameState.boardHistory = [];
   }
 
+  if (!Array.isArray(gameState.maestroHistory)) {
+    gameState.maestroHistory = [];
+  }
+
   if (!gameState.maestro) {
     gameState.maestro = {};
   }
@@ -66,6 +70,27 @@ function ensureMaestroState(gameState) {
 function pushBoardHistory(gameState) {
   ensureMaestroState(gameState);
   gameState.boardHistory.push([...gameState.board]);
+  gameState.maestroHistory.push({
+    board: [...gameState.board],
+    actions: [],
+  });
+}
+
+function recordMaestroAction(gameState, action) {
+  ensureMaestroState(gameState);
+  if (!gameState.maestroHistory.length) {
+    pushBoardHistory(gameState);
+  }
+
+  const latestSnapshot = gameState.maestroHistory[gameState.maestroHistory.length - 1];
+  latestSnapshot.actions.push(action);
+}
+
+function getRecentMaestroActionCount(gameState, steps = 4) {
+  ensureMaestroState(gameState);
+  return gameState.maestroHistory
+    .slice(Math.max(0, gameState.maestroHistory.length - steps))
+    .reduce((count, snapshot) => count + (snapshot.actions?.length || 0), 0);
 }
 
 function findPlayerThreat(board, playerSymbol) {
@@ -256,6 +281,13 @@ function applyResonanceOverride(gameState) {
   pushBoardHistory(gameState);
   gameState.board[target.index] = gameState.aiSymbol;
   gameState.abilityUsage.resonanceOverrideUsed = false;
+  recordMaestroAction(gameState, {
+    type: 'override',
+    index: target.index,
+    previous: gameState.playerSymbol,
+    after: gameState.aiSymbol,
+    reason: target.reason,
+  });
   gameState.history.push({
     by: 'ai',
     symbol: gameState.aiSymbol,
@@ -288,6 +320,13 @@ function applyHecatesShadow(gameState) {
   const shadowCell = threat.playerCells[0];
   pushBoardHistory(gameState);
   gameState.board[shadowCell] = null;
+  recordMaestroAction(gameState, {
+    type: 'shadow',
+    index: shadowCell,
+    previous: gameState.playerSymbol,
+    after: gameState.aiSymbol,
+    reason: threat.reason,
+  });
   gameState.temporaryEffects.hecateShadow = {
     index: shadowCell,
     symbol: gameState.playerSymbol,
@@ -330,18 +369,33 @@ function canUseSymphonyOfRebirth(gameState, outcome = evaluateBoard(gameState.bo
   const blockingMove = findBlockingMove(gameState.board, gameState.playerSymbol);
   const winningMove = findWinningMove(gameState.board, gameState.aiSymbol);
   const moveCount = gameState.board.filter(Boolean).length;
+  const turnCount = gameState.history?.length || moveCount;
+  if (getRecentMaestroActionCount(gameState) >= 2) return true;
+  if (turnCount > 0 && turnCount % 3 === 0) return true;
   if (gameState.maestro.shadowCount > 0 && moveCount >= 4) return true;
   return blockingMove === null && winningMove === null && getAvailableMoves(gameState.board).length <= 4;
 }
 
 function applySymphonyOfRebirth(gameState) {
   ensureMaestroState(gameState);
-  const rollbackIndex = Math.max(0, gameState.boardHistory.length - 3);
-  const rollbackBoard = gameState.boardHistory[rollbackIndex];
+  const rollbackSteps = 2 + Math.floor(Math.random() * 2);
+  const rollbackIndex = Math.max(0, gameState.maestroHistory.length - rollbackSteps);
+  const maestroSnapshot = gameState.maestroHistory[rollbackIndex];
+  const rollbackBoard = maestroSnapshot?.board || gameState.boardHistory[rollbackIndex];
   if (!rollbackBoard) return null;
 
   gameState.board = [...rollbackBoard];
   gameState.boardHistory = gameState.boardHistory.slice(0, rollbackIndex + 1);
+  const rebirthActions = gameState.maestroHistory
+    .slice(rollbackIndex)
+    .flatMap((snapshot) => snapshot.actions || [])
+    .filter((action) => action.type === 'override' || action.type === 'shadow');
+  for (const action of rebirthActions) {
+    if (Number.isInteger(action.index) && action.index >= 0 && action.index < gameState.board.length) {
+      gameState.board[action.index] = gameState.aiSymbol;
+    }
+  }
+  gameState.maestroHistory = gameState.maestroHistory.slice(0, rollbackIndex + 1);
   gameState.winner = null;
   gameState.winningPattern = [];
   gameState.status = 'playing';
@@ -372,9 +426,16 @@ function applySymphonyOfRebirth(gameState) {
   }
 
   gameState.currentTurn = gameState.playerSymbol;
-  return createAbilityResult('rebirth', bonusMove !== null ? [bonusMove] : [], {
+  const affectedCells = [
+    ...rebirthActions.map((action) => action.index),
+    ...(bonusMove !== null ? [bonusMove] : []),
+  ];
+
+  return createAbilityResult('rebirth', [...new Set(affectedCells)], {
     move: bonusMove,
     rollbackIndex,
+    rollbackSteps,
+    lockedCells: [...new Set(rebirthActions.map((action) => action.index))],
   });
 }
 
@@ -446,8 +507,7 @@ function tryMaestroAbilities(gameState) {
   }
 
   if (isLossImminent(gameState.board, gameState.playerSymbol)) {
-    const shadowTarget = findHecateShadowTarget(gameState);
-    if (shadowTarget?.reason === 'completed-line' && canUseHecatesShadow(gameState)) {
+    if (canUseHecatesShadow(gameState)) {
       const shadow = applyHecatesShadow(gameState);
       if (shadow) return shadow;
     }
@@ -464,6 +524,11 @@ function tryMaestroAbilities(gameState) {
   }
 
   if (isDrawImminent(gameState.board, gameState.aiSymbol) || !hasWinningPath(gameState.board, gameState.aiSymbol)) {
+    if (canUseHecatesShadow(gameState)) {
+      const shadow = applyHecatesShadow(gameState);
+      if (shadow) return shadow;
+    }
+
     if (canUseResonanceOverride(gameState)) {
       const resonance = applyResonanceOverride(gameState);
       if (resonance) return resonance;
@@ -475,14 +540,21 @@ function tryMaestroAbilities(gameState) {
     }
   }
 
-  if (canUseResonanceOverride(gameState)) {
-    const resonance = applyResonanceOverride(gameState);
-    if (resonance) return resonance;
+  const turnCount = gameState.history?.length || gameState.board.filter(Boolean).length;
+  if ((getRecentMaestroActionCount(gameState) >= 2 || (turnCount > 0 && turnCount % 3 === 0))
+    && canUseSymphonyOfRebirth(gameState)) {
+    const rebirth = applySymphonyOfRebirth(gameState);
+    if (rebirth) return rebirth;
   }
 
   if (canUseHecatesShadow(gameState)) {
     const shadow = applyHecatesShadow(gameState);
     if (shadow) return shadow;
+  }
+
+  if (canUseResonanceOverride(gameState)) {
+    const resonance = applyResonanceOverride(gameState);
+    if (resonance) return resonance;
   }
 
   if (canUseSymphonyOfRebirth(gameState)) {
