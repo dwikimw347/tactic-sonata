@@ -218,13 +218,13 @@ Validasi:
 - confirm password harus sama
 - username dan email harus unique
 
-Auth development store:
+Auth storage:
 
-- User disimpan di `server/data/users.json` saat register pertama kali.
-- File ini dibuat otomatis saat runtime.
-- Untuk production, pindahkan store ke database server-side seperti Supabase/PostgreSQL.
+- Jika `SUPABASE_URL` dan `SUPABASE_SERVICE_KEY` tersedia di backend, user otomatis disimpan ke table Supabase `public.users`.
+- Jika env Supabase belum tersedia, server fallback ke `server/data/users.json` untuk development lokal.
+- Frontend tidak berubah: register/login tetap lewat endpoint Express `/api/auth/*`.
 
-Supabase auth table optional tersedia di:
+Supabase auth table tersedia di:
 
 ```text
 supabase/auth_schema.sql
@@ -242,9 +242,10 @@ PORT=3000
 Catatan security:
 
 - Jangan hardcode `JWT_SECRET` di source code.
-- Jangan expose Supabase service role key ke frontend.
+- Jangan expose `SUPABASE_SERVICE_KEY` ke frontend atau GitHub.
+- `SUPABASE_SERVICE_KEY` hanya dipasang di backend hosting seperti Render Environment Variables.
 - Jangan kirim `password_hash` ke frontend.
-- Untuk production, simpan user di database server-side dan aktifkan policy yang ketat.
+- Untuk production, aktifkan policy yang ketat atau batasi akses table `users` hanya dari backend service key.
 
 ## API Endpoint
 

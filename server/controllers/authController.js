@@ -19,7 +19,7 @@ function sendError(res, status, message) {
   });
 }
 
-function validateRegister({ username, email, password, confirmPassword }) {
+async function validateRegister({ username, email, password, confirmPassword }) {
   const cleanUsername = String(username || '').trim();
   const cleanEmail = String(email || '').trim().toLowerCase();
   const cleanPassword = String(password || '');
@@ -28,8 +28,8 @@ function validateRegister({ username, email, password, confirmPassword }) {
   if (!EMAIL_PATTERN.test(cleanEmail)) return 'Please enter a valid email address.';
   if (cleanPassword.length < 6) return 'Password must be at least 6 characters.';
   if (cleanPassword !== String(confirmPassword || '')) return 'Confirm password must match password.';
-  if (userStore.findByUsername(cleanUsername)) return 'Username is already taken.';
-  if (userStore.findByEmail(cleanEmail)) return 'Email is already registered.';
+  if (await userStore.findByUsername(cleanUsername)) return 'Username is already taken.';
+  if (await userStore.findByEmail(cleanEmail)) return 'Email is already registered.';
 
   return null;
 }
@@ -71,24 +71,33 @@ function verifyToken(token) {
 }
 
 async function register(req, res) {
-  const validationError = validateRegister(req.body || {});
-  if (validationError) return sendError(res, 400, validationError);
+  try {
+    const validationError = await validateRegister(req.body || {});
+    if (validationError) return sendError(res, 400, validationError);
 
-  const username = String(req.body.username).trim();
-  const email = String(req.body.email).trim().toLowerCase();
-  const passwordHash = await bcrypt.hash(String(req.body.password), 12);
-  const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
-  const user = userStore.createUser({ id, username, email, passwordHash });
-  const token = createToken(user);
+    const username = String(req.body.username).trim();
+    const email = String(req.body.email).trim().toLowerCase();
+    const passwordHash = await bcrypt.hash(String(req.body.password), 12);
+    const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
+    const user = await userStore.createUser({ id, username, email, passwordHash });
+    const token = createToken(user);
 
-  return res.status(201).json({
-    success: true,
-    message: 'Account created.',
-    data: {
-      token,
-      user: userStore.sanitizeUser(user),
-    },
-  });
+    return res.status(201).json({
+      success: true,
+      message: 'Account created.',
+      data: {
+        token,
+        user: userStore.sanitizeUser(user),
+      },
+    });
+  } catch (error) {
+    if (error?.code === '23505') {
+      return sendError(res, 400, 'Username or email is already registered.');
+    }
+
+    console.error('Register failed:', error);
+    return sendError(res, 500, 'Unable to create account.');
+  }
 }
 
 async function login(req, res) {
@@ -96,20 +105,25 @@ async function login(req, res) {
   if (validationError) return sendError(res, 400, validationError);
 
   const email = String(req.body.email).trim().toLowerCase();
-  const user = userStore.findByEmail(email);
-  if (!user) return sendError(res, 401, 'Invalid email or password.');
+  try {
+    const user = await userStore.findByEmail(email);
+    if (!user) return sendError(res, 401, 'Invalid email or password.');
 
-  const passwordMatches = await bcrypt.compare(String(req.body.password || ''), user.passwordHash);
-  if (!passwordMatches) return sendError(res, 401, 'Invalid email or password.');
+    const passwordMatches = await bcrypt.compare(String(req.body.password || ''), user.passwordHash);
+    if (!passwordMatches) return sendError(res, 401, 'Invalid email or password.');
 
-  return res.json({
-    success: true,
-    message: 'Logged in.',
-    data: {
-      token: createToken(user),
-      user: userStore.sanitizeUser(user),
-    },
-  });
+    return res.json({
+      success: true,
+      message: 'Logged in.',
+      data: {
+        token: createToken(user),
+        user: userStore.sanitizeUser(user),
+      },
+    });
+  } catch (error) {
+    console.error('Login failed:', error);
+    return sendError(res, 500, 'Unable to log in.');
+  }
 }
 
 function logout(_req, res) {
@@ -120,23 +134,28 @@ function logout(_req, res) {
   });
 }
 
-function me(req, res) {
+async function me(req, res) {
   const token = getTokenFromRequest(req);
   if (!token) return sendError(res, 401, 'Not authenticated.');
 
   const payload = verifyToken(token);
   if (!payload?.sub) return sendError(res, 401, 'Session expired.');
 
-  const user = userStore.findById(payload.sub);
-  if (!user) return sendError(res, 401, 'User not found.');
+  try {
+    const user = await userStore.findById(payload.sub);
+    if (!user) return sendError(res, 401, 'User not found.');
 
-  return res.json({
-    success: true,
-    message: 'Authenticated.',
-    data: {
-      user: userStore.sanitizeUser(user),
-    },
-  });
+    return res.json({
+      success: true,
+      message: 'Authenticated.',
+      data: {
+        user: userStore.sanitizeUser(user),
+      },
+    });
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    return sendError(res, 500, 'Unable to verify session.');
+  }
 }
 
 module.exports = {

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const supabaseUserStore = require('./supabaseUserStore');
 
 const USERS_FILE = path.join(__dirname, 'users.json');
 
@@ -41,21 +42,21 @@ function sanitizeUser(user) {
   };
 }
 
-function findByEmail(email) {
+function findByEmailLocal(email) {
   const normalized = normalizeEmail(email);
   return readStore().users.find((user) => user.email === normalized) || null;
 }
 
-function findByUsername(username) {
+function findByUsernameLocal(username) {
   const normalized = normalizeUsername(username).toLowerCase();
   return readStore().users.find((user) => user.username.toLowerCase() === normalized) || null;
 }
 
-function findById(id) {
+function findByIdLocal(id) {
   return readStore().users.find((user) => user.id === id) || null;
 }
 
-function createUser({ id, username, email, passwordHash }) {
+function createUserLocal({ id, username, email, passwordHash }) {
   const store = readStore();
   const user = {
     id,
@@ -67,6 +68,26 @@ function createUser({ id, username, email, passwordHash }) {
   store.users.push(user);
   writeStore(store);
   return user;
+}
+
+async function findByEmail(email) {
+  if (supabaseUserStore.isConfigured()) return supabaseUserStore.findByEmail(email);
+  return findByEmailLocal(email);
+}
+
+async function findByUsername(username) {
+  if (supabaseUserStore.isConfigured()) return supabaseUserStore.findByUsername(username);
+  return findByUsernameLocal(username);
+}
+
+async function findById(id) {
+  if (supabaseUserStore.isConfigured()) return supabaseUserStore.findById(id);
+  return findByIdLocal(id);
+}
+
+async function createUser(user) {
+  if (supabaseUserStore.isConfigured()) return supabaseUserStore.createUser(user);
+  return createUserLocal(user);
 }
 
 module.exports = {
