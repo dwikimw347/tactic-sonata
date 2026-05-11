@@ -351,6 +351,53 @@ input:focus-visible {
   color: var(--bone);
 }
 
+.presence-pill,
+.presence-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ash);
+  font-family: var(--readable);
+  font-size: 0.82rem;
+}
+
+.presence-line {
+  margin: 6px 0 0;
+}
+
+.presence-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff4d6d;
+  box-shadow: 0 0 12px rgba(255, 77, 109, 0.38);
+}
+
+.presence-dot.online {
+  background: #3cff8f;
+  box-shadow: 0 0 12px rgba(60, 255, 143, 0.42);
+}
+
+.presence-dot.searching {
+  background: #ffd166;
+  box-shadow: 0 0 12px rgba(255, 209, 102, 0.42);
+}
+
+.presence-dot.offline {
+  background: #ff4d6d;
+  box-shadow: 0 0 12px rgba(255, 77, 109, 0.38);
+}
+
+.presence-dot.in-match {
+  background: #8f7cff;
+  box-shadow: 0 0 12px rgba(143, 124, 255, 0.44);
+}
+
+.presence-label {
+  color: var(--bone);
+}
+
 .user-session-bar .secondary-btn {
   min-height: 30px;
   padding: 0 12px;

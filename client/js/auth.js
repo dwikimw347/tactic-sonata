@@ -148,6 +148,9 @@
     window.TacTicAuth.user = state.user;
     window.TacTicAuth.token = state.token;
     updateSessionUi();
+    if (state.user?.username) {
+      window.TacTicPresence?.setUserOnline?.(state.user.username, state.user.id);
+    }
   }
 
   function clearSession() {
@@ -225,6 +228,7 @@
     } catch (error) {
       // Logout is client-authoritative for this stateless JWT flow.
     }
+    await window.TacTicPresence?.setUserOffline?.();
     clearSession();
     showAuth();
   }

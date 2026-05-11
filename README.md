@@ -143,6 +143,54 @@ Player Skills di Multiplayer:
 - **Undo Move**: rollback move terakhir player sendiri selama lawan belum membalas.
 - **Harmony Shield**: otomatis membatalkan satu winning move lawan dan mengubah status shield menjadi `spent`.
 
+## User Presence / Online Status
+
+TacTic Sonata memiliki status online/offline berbasis Supabase Realtime untuk user yang login dan user guest di Multiplayer.
+
+Status yang dipakai:
+
+- `online`: user login dan berada di aplikasi/menu.
+- `searching`: user sedang mencari match Multiplayer.
+- `in_match`: user sedang berada di room Multiplayer.
+- `offline`: user logout, menutup tab, atau heartbeat `last_seen` sudah kedaluwarsa.
+
+Table presence tersedia di:
+
+```text
+supabase/presence_schema.sql
+```
+
+Langkah setup:
+
+1. Buka Supabase SQL Editor.
+2. Jalankan isi `supabase/presence_schema.sql`.
+3. Buka menu Realtime Supabase.
+4. Enable Realtime untuk tabel:
+   - `user_presence`
+
+Cara kerja frontend:
+
+- `client/js/presence.js` membuat atau meng-update row `user_presence`.
+- Setelah login, status menjadi `online`.
+- Saat klik Find Match, status menjadi `searching`.
+- Saat match dimulai, status menjadi `in_match`.
+- Saat match selesai atau kembali ke menu, status kembali `online`.
+- Saat logout, status menjadi `offline`.
+- Heartbeat berjalan setiap 15 detik untuk update `last_seen`.
+- Jika `last_seen` lebih dari 45 detik, UI menganggap user `offline`.
+
+Status tampil di:
+
+- header user info;
+- Multiplayer Find Match;
+- Multiplayer Game;
+- opponent panel.
+
+Catatan RLS:
+
+- Untuk demo, `presence_schema.sql` mematikan RLS agar GitHub Pages mudah mengakses presence memakai anon key.
+- Untuk production, aktifkan RLS dan buat policy agar client bisa select presence, tetapi hanya bisa upsert/update row miliknya sendiri.
+
 ## Register/Login
 
 TacTic Sonata memiliki auth screen sebelum title screen. User dapat membuat akun, login, logout, lalu username akun dipakai sebagai identitas default di UI dan mode Multiplayer.

@@ -168,6 +168,9 @@
     if (authUser?.id) {
       state.playerId = authUser.id;
     }
+    if (authUser?.username) {
+      window.TacTicPresence?.setUserOnline?.(authUser.username, authUser.id);
+    }
     setError("");
     setStatus("Enter a username to begin.");
     state.insightHintIndex = null;
@@ -184,6 +187,7 @@
     state.insightHintIndex = null;
     if (elements.multiplayerScreen) elements.multiplayerScreen.hidden = true;
     if (elements.modeSelectScreen) elements.modeSelectScreen.hidden = false;
+    window.TacTicPresence?.setUserOnlineAfterMatch?.();
   }
 
   function isConfigured() {
@@ -353,17 +357,21 @@
     setText(elements.multiplayerOpponentName, opponentName);
     setText(elements.multiplayerOpponentSymbol, opponentName === "Waiting..." ? "Opponent is -" : `Opponent is ${opponentSymbol}`);
     setText(elements.multiplayerRoomInfo, `Room ${String(state.room.id).slice(0, 8)} - ${state.room.status}`);
+    window.TacTicPresence?.renderPresence?.();
 
     if (state.room.status === "waiting") {
+      window.TacTicPresence?.setUserSearching?.(state.username, state.playerId);
       setStatus("Waiting for opponent...");
       setText(elements.multiplayerTurnLabel, "WAITING FOR OPPONENT");
       setText(elements.multiplayerTurnInfo, "Waiting for opponent.");
     } else if (state.room.status === "playing") {
+      window.TacTicPresence?.setUserInMatch?.(state.room.id);
       const myTurn = state.room.current_turn === state.symbol;
       setStatus(myTurn ? "Your turn." : "Opponent's turn.");
       setText(elements.multiplayerTurnLabel, myTurn ? `YOUR TURN - ${state.symbol}` : `OPPONENT'S TURN - ${state.room.current_turn}`);
       setText(elements.multiplayerTurnInfo, myTurn ? "Your turn." : "Opponent's turn.");
     } else {
+      window.TacTicPresence?.setUserOnlineAfterMatch?.();
       renderFinishedStatus(state.room);
     }
 
@@ -485,6 +493,7 @@
 
     state.username = username;
     getPlayerId();
+    window.TacTicPresence?.setUserSearching?.(state.username, state.playerId);
     setStatus("Searching for an opponent...");
     elements.findMatchButton.disabled = true;
 
@@ -643,6 +652,7 @@
     if (elements.multiplayerSetupPanel) elements.multiplayerSetupPanel.hidden = false;
     setError("");
     setStatus("Enter a username to begin.");
+    window.TacTicPresence?.setUserOnlineAfterMatch?.();
   }
 
   function subscribeToRoom(roomId) {
