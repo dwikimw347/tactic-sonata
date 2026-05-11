@@ -161,6 +161,13 @@
     hideAllScreens();
     if (elements.multiplayerSetupPanel) elements.multiplayerSetupPanel.hidden = false;
     if (elements.multiplayerGamePanel) elements.multiplayerGamePanel.hidden = true;
+    const authUser = window.TacTicAuth?.getUser?.();
+    if (authUser?.username && elements.multiplayerUsernameInput && !elements.multiplayerUsernameInput.value) {
+      elements.multiplayerUsernameInput.value = authUser.username;
+    }
+    if (authUser?.id) {
+      state.playerId = authUser.id;
+    }
     setError("");
     setStatus("Enter a username to begin.");
     state.insightHintIndex = null;
@@ -203,6 +210,11 @@
 
   function getPlayerId() {
     if (state.playerId) return state.playerId;
+    const authUser = window.TacTicAuth?.getUser?.();
+    if (authUser?.id) {
+      state.playerId = authUser.id;
+      return state.playerId;
+    }
     if (window.crypto?.randomUUID) {
       state.playerId = window.crypto.randomUUID();
     } else {

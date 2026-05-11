@@ -3,7 +3,7 @@
 const BACKEND_UNAVAILABLE_MESSAGE = 'Welcome, wanderer, to this humble grid. I am Phrolova, the silent conductor of souls... come, let us begin our solemn symphony of life and death.';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const IS_LOCAL_HOST = LOCAL_HOSTS.has(window.location.hostname);
-const API_BASE_URL = window.TACTIC_SONATA_API_BASE_URL || (IS_LOCAL_HOST ? 'http://localhost:3000' : '');
+const API_BASE_URL = window.TACTIC_SONATA_API_BASE_URL || '';
 const STATIC_HOST_LOCAL_MODE = !IS_LOCAL_HOST && !window.TACTIC_SONATA_API_BASE_URL;
 
 const state = {
@@ -1514,8 +1514,12 @@ async function apiRequest(path, options = {}) {
   }
 
   try {
+    const token = window.TacTicAuth?.getToken?.();
     const response = await fetch(`${API_BASE_URL}${API_BASE}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       ...options,
     });
 
@@ -1561,11 +1565,15 @@ function playClickSfx() {
   safePlay('click');
 }
 
+window.playClickSfx = playClickSfx;
+
 function showScreen(screenId) {
-  ['titleScreen', 'modeSelectScreen', 'gameScreen', 'multiplayerScreen'].forEach((id) => {
+  ['authScreen', 'titleScreen', 'modeSelectScreen', 'gameScreen', 'multiplayerScreen'].forEach((id) => {
     const element = document.getElementById(id);
     if (element) element.hidden = id !== screenId;
   });
+  const userBar = document.getElementById('userSessionBar');
+  if (userBar) userBar.hidden = screenId === 'authScreen' || !window.TacTicAuth?.getUser?.();
 }
 
 function stopAllBackgroundAudioElements() {

@@ -1,5 +1,10 @@
 const path = require('path');
 const express = require('express');
+const loadEnv = require('./config/loadEnv');
+
+loadEnv();
+
+const authRoutes = require('./routes/authRoutes');
 const gameRoutes = require('./routes/gameRoutes');
 
 const app = express();
@@ -7,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'client')));
+app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
 
 app.get('*', (req, res) => {

@@ -7,6 +7,7 @@ Aplikasi web Tic Tac Toe frontend + backend dengan lawan AI bernama **Phrolova**
 - Web app dengan HTML, CSS, JavaScript vanilla.
 - Backend Node.js + Express.
 - Komunikasi frontend/backend via REST API.
+- Register, login, logout, dan session JWT.
 - Player vs Phrolova.
 - Realtime online Multiplayer 1 vs 1 via Supabase Realtime.
 - Pilihan simbol X atau O.
@@ -83,6 +84,14 @@ Lalu buka browser:
 http://localhost:3000
 ```
 
+Untuk auth backend, set environment variable:
+
+```bash
+JWT_SECRET=change_this_secret
+```
+
+Jika `JWT_SECRET` tidak diset, server memakai secret runtime sementara sehingga token akan invalid setelah server restart. Untuk deploy, selalu set `JWT_SECRET` di Render atau environment hosting backend.
+
 ## Cara Test
 
 ```bash
@@ -134,6 +143,61 @@ Player Skills di Multiplayer:
 - **Undo Move**: rollback move terakhir player sendiri selama lawan belum membalas.
 - **Harmony Shield**: otomatis membatalkan satu winning move lawan dan mengubah status shield menjadi `spent`.
 
+## Register/Login
+
+TacTic Sonata memiliki auth screen sebelum title screen. User dapat membuat akun, login, logout, lalu username akun dipakai sebagai identitas default di UI dan mode Multiplayer.
+
+Auth backend berjalan di Express:
+
+- Password di-hash dengan `bcryptjs`.
+- Session memakai JWT.
+- Token disimpan di `localStorage`.
+- Saat page reload, frontend memanggil `/api/auth/me` untuk restore session.
+- Logout menghapus token dari browser dan kembali ke Auth Screen.
+
+Input register:
+
+- username
+- email
+- password
+- confirm password
+
+Validasi:
+
+- username minimal 3 karakter
+- email harus valid
+- password minimal 6 karakter
+- confirm password harus sama
+- username dan email harus unique
+
+Auth development store:
+
+- User disimpan di `server/data/users.json` saat register pertama kali.
+- File ini dibuat otomatis saat runtime.
+- Untuk production, pindahkan store ke database server-side seperti Supabase/PostgreSQL.
+
+Supabase auth table optional tersedia di:
+
+```text
+supabase/auth_schema.sql
+```
+
+Contoh env:
+
+```text
+JWT_SECRET=change_this_secret
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_KEY=your_service_key_or_db_connection
+PORT=3000
+```
+
+Catatan security:
+
+- Jangan hardcode `JWT_SECRET` di source code.
+- Jangan expose Supabase service role key ke frontend.
+- Jangan kirim `password_hash` ke frontend.
+- Untuk production, simpan user di database server-side dan aktifkan policy yang ketat.
+
 ## API Endpoint
 
 Semua response memakai format:
@@ -148,6 +212,10 @@ Semua response memakai format:
 
 Endpoint tersedia:
 
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
 - `GET /api/game/status`
 - `POST /api/game/start`
 - `POST /api/game/move`
