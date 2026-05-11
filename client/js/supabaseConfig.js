@@ -1,5 +1,5 @@
 const SUPABASE_URL = "https://pounibztwanrvusjbxzb.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvdW5pYnp0d2FucnZ1c2pieHpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MzU4NDgsImV4cCI6MjA5MzExMTg0OH0.mjRL7gx3XJ1erzfyXiDm2mgd8hQH8tNuvqgXckNsbFI";
+const SUPABASE_ANON_KEY = "sb_publishable_71LdgAlB6hwVePvP5q-1nw_q2Kzkudi";
 
 window.TACTIC_SUPABASE_CONFIG = {
   url: SUPABASE_URL,
