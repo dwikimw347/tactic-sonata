@@ -2,6 +2,9 @@
 
 Aplikasi web Tic Tac Toe frontend + backend dengan lawan AI bernama **Phrolova**. Phrolova adalah konduktor gothic yang puitis, misterius, melankolis, dan elegan. Game memakai tema merah-hitam, dialog dramatis, sistem skor, mode match, pilihan simbol, dan difficulty AI dari random sampai minimax optimal.
 
+Implementasi aplikasi dapat dilihat di link ini:
+tactic-sonata.onrender.com
+
 ## Fitur
 
 - Web app dengan HTML, CSS, JavaScript vanilla.
